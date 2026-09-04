@@ -76,14 +76,18 @@ public class ServiceTests
             {"jobs":[
               {"name":"select accounts","status":"completed","conclusion":"success"},
               {"name":"account 33","status":"completed","conclusion":"cancelled"},
+              {"name":"account 1 - goldshoot0720","status":"completed","conclusion":"success"},
+              {"name":"account 16 - chbondg2","status":"completed","conclusion":"failure"},
               {"name":"account 2","status":"completed","conclusion":"skipped"},
               {"name":"account 7","status":"in_progress","conclusion":null},
               {"name":"account 34","status":"completed","conclusion":"success"}
             ]}
             """);
-        Assert.Equal(new[] { 2, 7, 33 }, jobs.Select(job => job.Number));
-        Assert.Equal(new[] { "已略過", "執行中", "已取消" }, jobs.Select(job => job.StatusText));
-        Assert.All(jobs, job => Assert.False(job.IsSuccessful));
+        Assert.Equal(new[] { 1, 2, 7, 16, 33 }, jobs.Select(job => job.Number));
+        Assert.Equal(new[] { "成功", "已略過", "執行中", "失敗", "已取消" }, jobs.Select(job => job.StatusText));
+        Assert.True(jobs[0].IsSuccessful);
+        Assert.True(jobs[3].IsFailed);
+        Assert.All(jobs.Skip(1), job => Assert.False(job.IsSuccessful));
     }
 
     [Fact]
@@ -151,6 +155,20 @@ public class ServiceTests
             Assert.Equal("goldshoot0720", defaults[1].Alias);
             Assert.Equal("abuhg17", defaults[2].Alias);
             Assert.Equal("huang1988pioneer", defaults[3].Alias);
+            Assert.Equal("samafengtu", defaults[4].Alias);
+            Assert.Equal("fengtusama", defaults[5].Alias);
+            Assert.Equal("tushenbyfengbro", defaults[6].Alias);
+            Assert.Equal("fengwithting0831", defaults[7].Alias);
+            Assert.Equal("fengwithfeng1127", defaults[8].Alias);
+            Assert.Equal("fengwithtu1127", defaults[9].Alias);
+            Assert.Equal("akaonda333", defaults[10].Alias);
+            Assert.Equal("fbussinesseng", defaults[11].Alias);
+            Assert.Equal("engdictatorf", defaults[12].Alias);
+            Assert.Equal("fengtuprinfo", defaults[13].Alias);
+            Assert.Equal("flottojackpoteng", defaults[14].Alias);
+            Assert.Equal("feng33feng35feng3", defaults[15].Alias);
+            Assert.Equal("chbondg2", defaults[16].Alias);
+            Assert.False(defaults.ContainsKey(17));
             File.WriteAllText(Path.Combine(customPath, "accounts.json"), """{"1":{"Alias":"custom-name","Email":""}}""");
             Assert.Equal("custom-name", new LocalSettingsStore(customPath).LoadAccounts(warnings.Add)[1].Alias);
             Assert.Empty(warnings);

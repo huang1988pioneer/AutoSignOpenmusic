@@ -57,6 +57,19 @@ workflow 只會對有設 Secret 的編號開 job（帳號 1 = `OPENMUSIC_ACCESS_
 | 01 | `goldshoot0720` | `OPENMUSIC_ACCESS_TOKEN` |
 | 02 | `abuhg17` | `OPENMUSIC_ACCESS_TOKEN2` |
 | 03 | `huang1988pioneer` | `OPENMUSIC_ACCESS_TOKEN3` |
+| 04 | `samafengtu` | `OPENMUSIC_ACCESS_TOKEN4` |
+| 05 | `fengtusama` | `OPENMUSIC_ACCESS_TOKEN5` |
+| 06 | `tushenbyfengbro` | `OPENMUSIC_ACCESS_TOKEN6` |
+| 07 | `fengwithting0831` | `OPENMUSIC_ACCESS_TOKEN7` |
+| 08 | `fengwithfeng1127` | `OPENMUSIC_ACCESS_TOKEN8` |
+| 09 | `fengwithtu1127` | `OPENMUSIC_ACCESS_TOKEN9` |
+| 10 | `akaonda333` | `OPENMUSIC_ACCESS_TOKEN10` |
+| 11 | `fbussinesseng` | `OPENMUSIC_ACCESS_TOKEN11` |
+| 12 | `engdictatorf` | `OPENMUSIC_ACCESS_TOKEN12` |
+| 13 | `fengtuprinfo` | `OPENMUSIC_ACCESS_TOKEN13` |
+| 14 | `flottojackpoteng` | `OPENMUSIC_ACCESS_TOKEN14` |
+| 15 | `feng33feng35feng3` | `OPENMUSIC_ACCESS_TOKEN15` |
+| 16 | `chbondg2` | `OPENMUSIC_ACCESS_TOKEN16` |
 
 桌面工具會預先顯示上述別名，workflow 的 Job 名稱也會顯示對應帳號名稱。
 

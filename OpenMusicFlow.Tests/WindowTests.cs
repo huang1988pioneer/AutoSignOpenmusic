@@ -97,7 +97,7 @@ public class WindowTests
         fixture.Click("AccountNavButton");
         Assert.Equal(33, fixture.Get<StackPanel>("AliasListPanel").Children.Count);
         SaveFrame(fixture.Window, "accounts.png");
-        fixture.Get<TextBox>("AccountSearchTextBox").Text = "33";
+        fixture.Get<TextBox>("AccountSearchTextBox").Text = "TOKEN33";
         Dispatcher.UIThread.RunJobs();
         Assert.Single(fixture.Get<StackPanel>("AliasListPanel").Children, row => row.IsVisible);
         fixture.Click("LoginNavButton");
