@@ -55,9 +55,10 @@ workflow 只會對有設 Secret 的編號開 job（帳號 1 = `OPENMUSIC_ACCESS_
 | 帳號 | 預設別名 | GitHub Secret |
 | --- | --- | --- |
 | 01 | `goldshoot0720` | `OPENMUSIC_ACCESS_TOKEN` |
+| 02 | `abuhg17` | `OPENMUSIC_ACCESS_TOKEN2` |
 | 03 | `huang1988pioneer` | `OPENMUSIC_ACCESS_TOKEN3` |
 
-桌面工具會預先顯示上述別名，workflow 的 Job 名稱也會顯示 `account 1 - goldshoot0720` 與 `account 3 - huang1988pioneer`。
+桌面工具會預先顯示上述別名，workflow 的 Job 名稱也會顯示對應帳號名稱。
 
 開發執行需 .NET 8 SDK。GitHub 操作需安裝 [GitHub CLI](https://cli.github.com/)，並先執行 `gh auth login`；寫入 Secrets 的 GitHub 身分需有目標儲存庫的 Actions Secrets 寫入權限。
 

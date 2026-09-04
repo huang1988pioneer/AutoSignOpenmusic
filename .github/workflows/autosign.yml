@@ -81,7 +81,7 @@ jobs:
           PY
 
   autosign:
-    name: ${{ matrix.account == 1 && 'account 1 - goldshoot0720' || matrix.account == 3 && 'account 3 - huang1988pioneer' || format('account {0}', matrix.account) }}
+    name: ${{ matrix.account == 1 && 'account 1 - goldshoot0720' || matrix.account == 2 && 'account 2 - abuhg17' || matrix.account == 3 && 'account 3 - huang1988pioneer' || format('account {0}', matrix.account) }}
     needs: [test, select-accounts]
     if: needs.select-accounts.outputs.accounts != '[]'
     runs-on: ubuntu-latest

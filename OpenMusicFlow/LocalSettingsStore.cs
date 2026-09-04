@@ -88,6 +88,7 @@ internal sealed record AccountProfile(string Alias = "", string Email = "")
     public static string DefaultAlias(int number) => number switch
     {
         1 => "goldshoot0720",
+        2 => "abuhg17",
         3 => "huang1988pioneer",
         _ => string.Empty,
     };

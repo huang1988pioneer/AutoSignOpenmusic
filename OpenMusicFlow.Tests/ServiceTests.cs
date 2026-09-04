@@ -139,7 +139,7 @@ public class ServiceTests
     }
 
     [Fact]
-    public void AccountOneDefaultsToGoldshootWithoutOverwritingAnExistingAlias()
+    public void KnownAccountsGetDefaultsWithoutOverwritingAnExistingAlias()
     {
         var emptyPath = Path.Combine(Path.GetTempPath(), "OpenMusicFlow.Tests", Guid.NewGuid().ToString("N"));
         var customPath = Path.Combine(Path.GetTempPath(), "OpenMusicFlow.Tests", Guid.NewGuid().ToString("N"));
@@ -147,7 +147,10 @@ public class ServiceTests
         try
         {
             var warnings = new List<string>();
-            Assert.Equal("goldshoot0720", new LocalSettingsStore(emptyPath).LoadAccounts(warnings.Add)[1].Alias);
+            var defaults = new LocalSettingsStore(emptyPath).LoadAccounts(warnings.Add);
+            Assert.Equal("goldshoot0720", defaults[1].Alias);
+            Assert.Equal("abuhg17", defaults[2].Alias);
+            Assert.Equal("huang1988pioneer", defaults[3].Alias);
             File.WriteAllText(Path.Combine(customPath, "accounts.json"), """{"1":{"Alias":"custom-name","Email":""}}""");
             Assert.Equal("custom-name", new LocalSettingsStore(customPath).LoadAccounts(warnings.Add)[1].Alias);
             Assert.Empty(warnings);
