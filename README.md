@@ -36,8 +36,9 @@ Google / Apple 帳號也可以：在瀏覽器登入後複製 cookie 即可，不
 4. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
 排程每天台北時間 **05:27、13:27、21:27**（UTC `21:27、05:27、13:27`）。同一天已領取時會回報成功，不會重複領獎。
+另外每天台北 **04:27**（UTC `20:27`）跑 `Check Token Secret Duplicates`，比對 `OPENMUSIC_ACCESS_TOKEN` … `OPENMUSIC_ACCESS_TOKEN33` 是否有相同值；重複或全部未設定都會失敗。可從 **Actions → Check Token Secret Duplicates → Run workflow** 手動執行。
 分鐘 `27` 已於 2026-09-04 核對，不與五個參考專案當時的 cron 分鐘重複；完整對照見 [排程參考](docs/reference-schedules.md)。GitHub 實際啟動時間可能因排隊而延後。
-新排程需將 `.github/workflows/autosign.yml` 推送到目標儲存庫的預設分支，並啟用 Actions 才會生效。
+新排程需將 `.github/workflows/autosign.yml` 與 `.github/workflows/check-token-secret-duplicates.yml` 推送到目標儲存庫的預設分支，並啟用 Actions 才會生效。
 workflow 只會對有設 Secret 的編號開 job（帳號 1 = `OPENMUSIC_ACCESS_TOKEN`，其餘 = `OPENMUSIC_ACCESS_TOKEN{N}`），一次最多並行 5 個帳號。Cookie 過期時 Actions 會失敗，重新複製貼上對應 Secret 即可。
 
 請勿把 token 提交到 Git。過期後再從瀏覽器複製一次、更新對應編號的 Secret 即可。
@@ -103,7 +104,7 @@ dotnet publish OpenMusicFlow/OpenMusicFlow.csproj -c Release -r win-x64 --self-c
 `autosign.py` 只給 GitHub Actions 用。本機可跑 mock 測試（不碰真站、不登入）：
 
 ```bash
-python -m unittest test_autosign
+python -m unittest test_autosign test_check_token_duplicates
 dotnet test OpenMusicFlow.Tests/OpenMusicFlow.Tests.csproj -c Release --filter "Category!=BrowserSmoke"
 ```
 
