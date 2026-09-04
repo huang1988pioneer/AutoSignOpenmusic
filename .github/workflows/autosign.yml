@@ -1,0 +1,27 @@
+name: OpenMusic daily autosign
+
+on:
+  schedule:
+    # 01:00 UTC = 09:00 Taipei/HK. Adjust to your check-in reset time.
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  autosign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests (mocked transport)
+        run: python -m unittest test_autosign
+      - name: Daily sign-in + claim
+        env:
+          OPENMUSIC_EMAIL: ${{ secrets.OPENMUSIC_EMAIL }}
+          OPENMUSIC_PASSWORD: ${{ secrets.OPENMUSIC_PASSWORD }}
+          CHECKIN_ENDPOINT: ${{ secrets.CHECKIN_ENDPOINT }}
+          CHECKIN_BODY_JSON: ${{ secrets.CHECKIN_BODY_JSON }}
+          ALREADY_CLAIMED_CODES: ${{ secrets.ALREADY_CLAIMED_CODES }}
+        run: python autosign.py

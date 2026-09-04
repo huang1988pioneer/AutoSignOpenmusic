@@ -1,0 +1,33 @@
+name: Playwright login flow
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly smoke: login page + API shape. Live claim runs if secrets exist.
+    - cron: "0 2 * * 1"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install -r requirements-dev.txt
+          python -m playwright install chromium --with-deps
+      - name: E2E login / claim flow
+        env:
+          OPENMUSIC_EMAIL: ${{ secrets.OPENMUSIC_EMAIL }}
+          OPENMUSIC_PASSWORD: ${{ secrets.OPENMUSIC_PASSWORD }}
+        run: python -m unittest test_playwright_flow -v
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: artifacts/
+          if-no-files-found: ignore

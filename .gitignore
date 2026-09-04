@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+*.cookies
+artifacts/
+playwright-capture.json
+probe_trace.jsonl
+.venv/
+bin/
+obj/
+*.user

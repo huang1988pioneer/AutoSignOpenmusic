@@ -1,0 +1,308 @@
+"""OpenMusic AI daily auto sign-in + reward claim via public HTTP API.
+
+Pure stdlib (urllib). No third-party dependencies.
+
+Flow (reverse-engineered from the production web client, chunk 13471):
+  1. POST {BASE}/common-api/v1/login  {email, password: md5_hex(password)}
+     -> session cookies (incl. OPENMUSIC_ACCESS_TOKEN), envelope {code, message, data}
+  2. GET  {BASE}/common-api/v1/user             -> profile + credit balances
+  3. GET  {BASE}/api/activity/check-in/status?entry=refresh
+     -> activity_id, today_checked_in, reward_rules
+  4. POST {BASE}/api/activity/check-in/claim    {activity_id}
+     -> data.alreadyCheckedIn / data.rewardGranted
+
+CHECKIN_ENDPOINT still overrides step 4 if you need a one-off path.
+
+Exit codes: 0 claimed/already-claimed, 1 config/runtime error,
+            2 login failed, 3 claim failed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import http.cookiejar
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
+
+SUCCESS_CODE = 200
+CHECKIN_STATUS_PATH = "api/activity/check-in/status?entry=refresh"
+CHECKIN_CLAIM_PATH = "api/activity/check-in/claim"
+
+# Frontend error catalogue (module 16094 in the web client).
+ERROR_NAMES = {
+    400002: "EMAIL_NOT_ACTIVATED",
+    400004: "EMAIL_NOT_REGISTERED",
+    400005: "INCORRECT_PASSWORD",
+    400009: "RESET_PASSWORD_NO_PASSWORD_SET",
+    400010: "REQUEST_TOO_FREQUENT",
+    401001: "ACCOUNT_DISABLED",
+    500000: "CREDIT_NOT_ENOUGH",
+}
+
+
+class ApiError(Exception):
+    def __init__(self, code, message, path=""):
+        super().__init__(f"API {path} -> code={code} message={message!r}")
+        self.code = code
+        self.message = message
+        self.path = path
+
+
+class ClaimNotConfigured(Exception):
+    pass
+
+
+def md5_hex(password: str) -> str:
+    """The web client MD5-hashes the password (CryptoJS MD5, hex) before login."""
+    return hashlib.md5(password.encode("utf-8")).hexdigest()
+
+
+class OpenMusicClient:
+    def __init__(self, base_url="https://www.openmusic.ai", timeout=30):
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar)
+        )
+
+    def _request(self, method, path, body=None):
+        url = self.base_url + "/" + path.lstrip("/")
+        data = None
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) autosign/1.0",
+            "Accept": "application/json",
+            "Origin": self.base_url,
+            "Referer": self.base_url + "/",
+        }
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with self.opener.open(req, timeout=self.timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", errors="replace") or "{}"
+            try:
+                env = json.loads(raw)
+                raise ApiError(env.get("code", e.code), env.get("message", raw[:200]), path)
+            except (ValueError, ApiError) as exc:
+                if isinstance(exc, ApiError):
+                    raise
+                raise ApiError(e.code, f"HTTP {e.code}: {raw[:200]}", path)
+        try:
+            return json.loads(raw)
+        except ValueError:
+            raise ApiError(-1, f"non-JSON response: {raw[:200]!r}", path)
+
+    @staticmethod
+    def _check(envelope, path):
+        code = envelope.get("code")
+        if code != SUCCESS_CODE:
+            raise ApiError(code, envelope.get("message", ""), path)
+        return envelope.get("data")
+
+    def login(self, email, password_or_md5, password_is_md5=False):
+        body = {
+            "email": email,
+            "password": password_or_md5 if password_is_md5 else md5_hex(password_or_md5),
+            "utm": None,
+            "source": None,
+        }
+        env = self._request("POST", "common-api/v1/login", body)
+        return self._check(env, "common-api/v1/login")
+
+    def get_user(self):
+        env = self._request("GET", "common-api/v1/user")
+        return self._check(env, "common-api/v1/user")
+
+    def get_activities_current(self):
+        # Next.js proxy route; returns {"code":200,"data":None} when logged out.
+        env = self._request("GET", "api/activities/current")
+        return self._check(env, "api/activities/current")
+
+    def get_checkin_status(self, entry="refresh"):
+        path = (
+            CHECKIN_STATUS_PATH
+            if entry == "refresh"
+            else f"api/activity/check-in/status?entry={entry}"
+        )
+        env = self._request("GET", path)
+        return self._check(env, path)
+
+    def get_credit_log(self, per_page=5):
+        env = self._request(
+            "GET",
+            f"common-api/v1/user-credit-change-log?per_page={per_page}"
+            "&order_by=occurred_at&sort_direction=desc",
+        )
+        return self._check(env, "common-api/v1/user-credit-change-log")
+
+    def claim(self, method, path, body=None, already_claimed_codes=()):
+        env = self._request(method, path, body)
+        code = env.get("code")
+        data = env.get("data")
+        already = code in already_claimed_codes or (
+            isinstance(data, dict) and bool(data.get("alreadyCheckedIn"))
+        )
+        if code == SUCCESS_CODE or already:
+            return {"already": already, "data": data, "message": env.get("message", "")}
+        raise ApiError(code, env.get("message", ""), path)
+
+
+def activity_id_from_status(data):
+    """activity_id is nested on the activity object when logged in."""
+    if not isinstance(data, dict):
+        return None
+    if data.get("activity_id") is not None:
+        return data["activity_id"]
+    for key in ("activity", "check_in", "checkin"):
+        nested = data.get(key)
+        if isinstance(nested, dict) and nested.get("activity_id") is not None:
+            return nested["activity_id"]
+    for value in data.values():
+        if isinstance(value, dict) and value.get("activity_id") is not None:
+            return value["activity_id"]
+    return None
+
+
+def summarize_user(data):
+    if not isinstance(data, dict):
+        return f"user data: {json.dumps(data)[:200]}"
+    user = data.get("user") or {}
+    balances = data.get("user_credit_balances") or []
+    total = sum(b.get("balance", 0) for b in balances if isinstance(b, dict))
+    return (f"email={user.get('email')} id={user.get('id')} "
+            f"credits={total} buckets={len(balances)}")
+
+
+def _write_summary(env, email, already, before):
+    summary = env.get("GITHUB_STEP_SUMMARY")
+    if not summary:
+        return
+    with open(summary, "a", encoding="utf-8") as f:
+        f.write(f"### OpenMusic autosign\n- login: {email} OK\n"
+                f"- claim: {'already claimed' if already else 'claimed'}\n"
+                f"- before: {before}\n")
+
+
+def run(args, env=os.environ):
+    email = env.get("OPENMUSIC_EMAIL", "").strip()
+    password = env.get("OPENMUSIC_PASSWORD", "")
+    password_md5 = env.get("OPENMUSIC_PASSWORD_MD5", "").strip()
+    base = env.get("OPENMUSIC_BASE_URL", "https://www.openmusic.ai").strip()
+    if not email or (not password and not password_md5):
+        print("missing OPENMUSIC_EMAIL and OPENMUSIC_PASSWORD(_MD5)", file=sys.stderr)
+        return 1
+
+    client = OpenMusicClient(base_url=base)
+    try:
+        client.login(email, password_md5 or password,
+                     password_is_md5=bool(password_md5))
+    except ApiError as e:
+        name = ERROR_NAMES.get(e.code, "")
+        print(f"LOGIN FAILED code={e.code} {name} message={e.message!r}")
+        if e.code == 400010:
+            print("hint: rate limited, retry later (GitHub Actions `retry` handles this)")
+        return 2
+    print(f"LOGIN OK {email}")
+
+    # Read-only state first so --probe / logs always show balances.
+    try:
+        user = client.get_user()
+        print("USER", summarize_user(user))
+    except ApiError as e:
+        print(f"USER FETCH FAILED {e}")
+        return 1
+    try:
+        activity = client.get_activities_current()
+        print("ACTIVITY", json.dumps(activity)[:1000])
+    except ApiError as e:
+        print(f"ACTIVITY FETCH FAILED {e}")
+        activity = None
+    checkin = None
+    try:
+        checkin = client.get_checkin_status()
+        print("CHECKIN_STATUS", json.dumps(checkin)[:1000])
+    except ApiError as e:
+        print(f"CHECKIN_STATUS FAILED {e}")
+    try:
+        log = client.get_credit_log()
+        items = log.get("list", log) if isinstance(log, dict) else log
+        print("CREDIT_LOG", json.dumps(items)[:800])
+    except ApiError as e:
+        print(f"CREDIT_LOG FAILED {e}")
+
+    if args.probe:
+        print("PROBE MODE: state dumped, no claim attempted")
+        return 0
+
+    already = [int(x) for x in env.get("ALREADY_CLAIMED_CODES", "").split(",") if x.strip().isdigit()]
+    before = summarize_user(user)
+
+    if isinstance(checkin, dict) and checkin.get("today_checked_in"):
+        print(f"ALREADY CLAIMED today_checked_in=true {before}")
+        _write_summary(env, email, already=True, before=before)
+        return 0
+
+    endpoint = env.get("CHECKIN_ENDPOINT", "").strip()
+    if endpoint:
+        parts = endpoint.split(None, 1)
+        if len(parts) != 2:
+            print(f"bad CHECKIN_ENDPOINT {endpoint!r}, want 'METHOD path'", file=sys.stderr)
+            return 1
+        method, path = parts
+        body_raw = env.get("CHECKIN_BODY_JSON", "").strip()
+        try:
+            body = json.loads(body_raw) if body_raw else None
+        except ValueError:
+            print(f"bad CHECKIN_BODY_JSON: {body_raw!r}", file=sys.stderr)
+            return 1
+    else:
+        activity_id = activity_id_from_status(checkin)
+        if activity_id is None:
+            print("CLAIM FAILED: no activity_id in CHECKIN_STATUS; "
+                  "is a check-in campaign running?")
+            return 3
+        method, path = "POST", CHECKIN_CLAIM_PATH
+        body = {"activity_id": activity_id}
+        print(f"CLAIM {method} {path} activity_id={activity_id}")
+
+    try:
+        # Small delay so a same-second credit-log comparison is meaningful.
+        time.sleep(1)
+        result = client.claim(method.upper(), path, body, tuple(already))
+    except ApiError as e:
+        name = ERROR_NAMES.get(e.code, "")
+        print(f"CLAIM FAILED code={e.code} {name} message={e.message!r}")
+        return 3
+    if result["already"]:
+        print(f"ALREADY CLAIMED message={result['message']!r} {before}")
+    else:
+        try:
+            after = summarize_user(client.get_user())
+        except ApiError:
+            after = "unknown (re-fetch failed)"
+        print(f"CLAIMED message={result['message']!r} data={json.dumps(result['data'])[:300]}")
+        print(f"BEFORE {before}")
+        print(f"AFTER  {after}")
+    _write_summary(env, email, already=result["already"], before=before)
+    return 0
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description="OpenMusic AI daily auto sign-in")
+    p.add_argument("--probe", action="store_true",
+                   help="login + dump user/activity/credit state, skip claim")
+    args = p.parse_args(argv)
+    return run(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
