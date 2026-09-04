@@ -162,9 +162,9 @@ public class ServiceTests
             Assert.Equal("fengwithfeng1127", defaults[8].Alias);
             Assert.Equal("fengwithtu1127", defaults[9].Alias);
             Assert.Equal("akaonda333", defaults[10].Alias);
-            Assert.Equal("fbussinesseng", defaults[11].Alias);
-            Assert.Equal("engdictatorf", defaults[12].Alias);
-            Assert.Equal("fengtuprinfo", defaults[13].Alias);
+            Assert.Equal("engdictatorf", defaults[11].Alias);
+            Assert.Equal("fengtuprinfo", defaults[12].Alias);
+            Assert.Equal("fbussinesseng", defaults[13].Alias);
             Assert.Equal("flottojackpoteng", defaults[14].Alias);
             Assert.Equal("feng33feng35feng3", defaults[15].Alias);
             Assert.Equal("chbondg2", defaults[16].Alias);
