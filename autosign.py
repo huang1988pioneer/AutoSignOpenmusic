@@ -2,15 +2,14 @@
 
 Pure stdlib (urllib). No third-party dependencies.
 
-Auth (GitHub Secrets; pick one):
-  * OPENMUSIC_COOKIES          Cookie header, e.g.
-    OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...
-  * OPENMUSIC_ACCESS_TOKEN     (+ optional OPENMUSIC_SESSION_ID)
-  * OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5)  fallback login POST
+Auth (GitHub Secrets):
+  * OPENMUSIC_ACCESS_TOKEN     one cookie value from the browser (preferred)
+  * OPENMUSIC_COOKIES          optional full Cookie header
+  * OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5)  optional email-account fallback
 
 Flow (reverse-engineered from the production web client, chunk 13471):
-  1. Session cookies on .openmusic.ai: OPENMUSIC_ACCESS_TOKEN, OPENMUSIC_SESSION_ID
-     (or POST {BASE}/common-api/v1/login {email, password: md5_hex} to mint them)
+  1. Session cookie OPENMUSIC_ACCESS_TOKEN on .openmusic.ai
+     (or POST {BASE}/common-api/v1/login {email, password: md5_hex} to mint it)
   2. GET  {BASE}/common-api/v1/user             -> profile + credit balances
   3. GET  {BASE}/api/activity/check-in/status?entry=refresh
      -> activity_id, today_checked_in, reward_rules
@@ -298,10 +297,9 @@ def run(args, env=os.environ):
     cookies = session_cookies_from_env(env)
     if not cookies and (not email or (not password and not password_md5)):
         print(
-            "missing session cookies: set OPENMUSIC_COOKIES "
-            "(OPENMUSIC_ACCESS_TOKEN; OPENMUSIC_SESSION_ID) "
-            "or OPENMUSIC_ACCESS_TOKEN. "
-            "Email/password login is optional fallback only.",
+            "missing OPENMUSIC_ACCESS_TOKEN "
+            "(copy that one cookie value from the browser). "
+            "OPENMUSIC_COOKIES is optional if you paste a full Cookie header.",
             file=sys.stderr,
         )
         return 1
@@ -330,8 +328,8 @@ def run(args, env=os.environ):
     except ApiError as e:
         print(f"USER FETCH FAILED {e}")
         if cookies:
-            print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
-                  "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+            print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
+                  "in GitHub Secrets")
             return 2
         return 1
     user_email = (user.get("user") or {}).get("email") if isinstance(user, dict) else None
@@ -339,8 +337,8 @@ def run(args, env=os.environ):
         account = user_email
     elif cookies and not (isinstance(user, dict) and (user.get("user") or {}).get("id")):
         print("SESSION EXPIRED: /common-api/v1/user has no logged-in profile")
-        print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
-              "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+        print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
+              "in GitHub Secrets")
         return 2
     try:
         activity = client.get_activities_current()
@@ -363,8 +361,8 @@ def run(args, env=os.environ):
 
     if isinstance(checkin, dict) and checkin.get("login_required"):
         print("SESSION EXPIRED login_required=true")
-        print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
-              "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+        print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
+              "in GitHub Secrets")
         return 2
 
     if args.probe:

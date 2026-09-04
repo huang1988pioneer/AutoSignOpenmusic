@@ -8,7 +8,6 @@ namespace OpenMusicFlow;
 public partial class MainWindow : Window
 {
     private const int AccountCount = 10;
-    private const string CookiesSecretName = "OPENMUSIC_COOKIES";
     private const string TokenSecretName = "OPENMUSIC_ACCESS_TOKEN";
 
     private readonly GitHubActionsService _githubActions = new();
@@ -33,18 +32,11 @@ public partial class MainWindow : Window
         view.BringIntoView();
     }
 
-    private async void CopyCookiesSecretButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(CookiesSecretName);
-        AccountStatusText.Text =
-            $"已複製 {CookiesSecretName}。請貼 OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...，不要提交到 Git。";
-    }
-
     private async void CopyTokenSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(TokenSecretName);
         AccountStatusText.Text =
-            $"已複製 {TokenSecretName}。可再新增 OPENMUSIC_SESSION_ID。Cookie 過期時請重新從瀏覽器複製。";
+            $"已複製 {TokenSecretName}。到瀏覽器 Cookies 複製這一個值貼上即可，不必再複製 SESSION_ID。";
     }
 
     private async void TriggerClaimButton_OnClick(object? sender, RoutedEventArgs e)

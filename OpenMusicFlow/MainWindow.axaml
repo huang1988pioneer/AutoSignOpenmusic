@@ -22,8 +22,8 @@
         </StackPanel>
         <Border Background="#7C2D12" CornerRadius="8" Padding="14">
           <StackPanel Spacing="7">
-            <TextBlock Text="用 session cookie，不是 Email" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="從瀏覽器複製 OPENMUSIC_ACCESS_TOKEN 與 OPENMUSIC_SESSION_ID，貼到 GitHub Secrets。本機不登入。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
+            <TextBlock Text="只要複製一個 token" FontWeight="SemiBold" Foreground="White" />
+            <TextBlock Text="瀏覽器 F12 → Cookies → 複製 OPENMUSIC_ACCESS_TOKEN 的值，貼到 GitHub Secret 同名項目。本機不登入。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
           </StackPanel>
         </Border>
         <StackPanel Spacing="4" Margin="0,8,0,0">
@@ -101,17 +101,16 @@
           <Border x:Name="AccountSection" Classes="panel">
             <StackPanel Spacing="12">
               <TextBlock Text="帳號別名與 Email 標籤" FontWeight="SemiBold" FontSize="16" />
-              <TextBlock Classes="muted" Text="帳號 01 對應 GitHub Secrets：OPENMUSIC_COOKIES（或 OPENMUSIC_ACCESS_TOKEN + OPENMUSIC_SESSION_ID）。在瀏覽器 F12 → Application → Cookies 複製後貼上。" FontSize="12" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" Text="帳號 01 只要一個 GitHub Secret：OPENMUSIC_ACCESS_TOKEN。F12 → Application → Cookies → 複製這個 cookie 的 Value。" FontSize="12" TextWrapping="Wrap" />
               <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="AliasListPanel" Spacing="6" />
               </ScrollViewer>
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
-                <Button Click="CopyCookiesSecretButton_OnClick">複製 Cookies Secret 名稱</Button>
                 <Button Click="CopyTokenSecretButton_OnClick">複製 Access Token Secret 名稱</Button>
               </StackPanel>
               <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
-                <TextBlock x:Name="AccountStatusText" Text="準備就緒。請把官網 cookie 貼到 GitHub Secrets，由 Actions 簽到與領獎。" Foreground="#29434A" TextWrapping="Wrap" />
+                <TextBlock x:Name="AccountStatusText" Text="準備就緒。只要複製 OPENMUSIC_ACCESS_TOKEN 這一個值，貼到 GitHub Secrets。" Foreground="#29434A" TextWrapping="Wrap" />
               </Border>
             </StackPanel>
           </Border>

@@ -2,18 +2,13 @@
 
 每天自動登入 [OpenMusic AI](https://www.openmusic.ai/) 並領取簽到獎賞點數。
 簽到與領獎**只在 GitHub Actions 執行**（官方 HTTP API，非瀏覽器模擬）。
-本機不登入、不存密碼；GitHub Secrets 放的是**網站 session cookie**，不是 Email。
-
-官網必要 cookie（`.openmusic.ai`）：
-
-- `OPENMUSIC_ACCESS_TOKEN` — 登入後的 access token
-- `OPENMUSIC_SESSION_ID` — session id
+本機不登入、不存密碼；GitHub Secrets 只放 **一個 cookie 值**：`OPENMUSIC_ACCESS_TOKEN`。
 
 ## 原理（已逆向驗證）
 
 | 步驟 | 方法與路徑 | 狀態 |
 |---|---|---|
-| 身分 | 帶 `OPENMUSIC_ACCESS_TOKEN` / `OPENMUSIC_SESSION_ID` cookie（瀏覽器登入後複製） | ✅ 與官網相同 session |
+| 身分 | 帶 `OPENMUSIC_ACCESS_TOKEN` cookie（瀏覽器登入後複製這一個值） | ✅ 與官網相同 session |
 | 讀點數 | `GET /common-api/v1/user`（`user_credit_balances`） | ✅ |
 | 簽到狀態 | `GET /api/activity/check-in/status?entry=refresh` | ✅（未登入回 `activity_available: true`, `login_required: true`） |
 | 領獎 | `POST /api/activity/check-in/claim`，body `{activity_id}` | ✅ 來自懶載入 chunk `MobileAccountActions` / `CheckInRewardsDialog` |
@@ -25,39 +20,22 @@ Google / Apple 帳號也可以：在瀏覽器登入後複製 cookie 即可，不
 
 ## 快速開始
 
-1. 用瀏覽器登入 [openmusic.ai](https://www.openmusic.ai/)，打開開發者工具複製 cookie。
-2. 到 repo **Settings → Secrets and variables → Actions** 新增（擇一即可）：
+1. 用瀏覽器登入 [openmusic.ai](https://www.openmusic.ai/)。
+2. `F12` → **Application** → **Cookies** → `https://www.openmusic.ai` → 只複製 **`OPENMUSIC_ACCESS_TOKEN` 的 Value**（一個值）。
+3. 到 repo **Settings → Secrets and variables → Actions** 新增 Secret：
 
-   | Secret | 內容 |
+   | Secret | 貼什麼 |
    |---|---|
-   | `OPENMUSIC_COOKIES`（建議） | 完整 Cookie header，例如 `OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...` |
-   | `OPENMUSIC_ACCESS_TOKEN` | 只貼 token 值；可再加 `OPENMUSIC_SESSION_ID` |
-   | `OPENMUSIC_EMAIL` + `OPENMUSIC_PASSWORD` | 選填。僅 Email 帳號的後備登入，Google / Apple 不能用 |
+   | `OPENMUSIC_ACCESS_TOKEN` | 剛才複製的那一個 token 值 |
 
-   選填覆寫：
+   選填（一般不用設）：`OPENMUSIC_COOKIES`、`CHECKIN_ENDPOINT`、`CHECKIN_BODY_JSON`、`ALREADY_CLAIMED_CODES`
 
-   - `CHECKIN_ENDPOINT`：覆寫領獎路徑，預設已是 `POST api/activity/check-in/claim`
-   - `CHECKIN_BODY_JSON`：覆寫 body；預設會帶 status 回的 `activity_id`
-   - `ALREADY_CLAIMED_CODES`：視為「已領過」的 code
-
-3. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
+4. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
 排程預設每天 `01:00 UTC`（台北 09:00），改 `.github/workflows/autosign.yml` 的 cron 即可。
 workflow 會用 session cookie 讀簽到狀態再領獎。Cookie 過期時 Actions 會失敗，重新複製貼上 Secret 即可。
 
-### 怎麼複製 Cookie
-
-1. Chrome / Edge：登入官網後按 `F12` → **Application**（應用程式）→ **Cookies** → `https://www.openmusic.ai`。
-2. 複製 `OPENMUSIC_ACCESS_TOKEN` 與 `OPENMUSIC_SESSION_ID` 的值。
-3. 組成一行貼到 `OPENMUSIC_COOKIES`：
-
-   ```
-   OPENMUSIC_ACCESS_TOKEN=這裡貼token; OPENMUSIC_SESSION_ID=這裡貼session
-   ```
-
-也可在 **Network** 裡點任一 `www.openmusic.ai` 請求，從 Request Headers 複製整段 `Cookie:`。
-
-請勿把 cookie 提交到 Git。
+請勿把 token 提交到 Git。過期後再從瀏覽器複製一次、更新同一個 Secret 即可。
 
 ## 桌面工具（Windows、macOS、Linux）
 
