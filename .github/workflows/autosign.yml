@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  autosign:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,14 +17,135 @@ jobs:
           python-version: "3.12"
       - name: Unit tests (mocked transport)
         run: python -m unittest test_autosign
+
+  select-accounts:
+    name: select accounts
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      accounts: ${{ steps.pick.outputs.accounts }}
+    env:
+      TOKEN_1: ${{ secrets.OPENMUSIC_ACCESS_TOKEN }}
+      TOKEN_2: ${{ secrets.OPENMUSIC_ACCESS_TOKEN2 }}
+      TOKEN_3: ${{ secrets.OPENMUSIC_ACCESS_TOKEN3 }}
+      TOKEN_4: ${{ secrets.OPENMUSIC_ACCESS_TOKEN4 }}
+      TOKEN_5: ${{ secrets.OPENMUSIC_ACCESS_TOKEN5 }}
+      TOKEN_6: ${{ secrets.OPENMUSIC_ACCESS_TOKEN6 }}
+      TOKEN_7: ${{ secrets.OPENMUSIC_ACCESS_TOKEN7 }}
+      TOKEN_8: ${{ secrets.OPENMUSIC_ACCESS_TOKEN8 }}
+      TOKEN_9: ${{ secrets.OPENMUSIC_ACCESS_TOKEN9 }}
+      TOKEN_10: ${{ secrets.OPENMUSIC_ACCESS_TOKEN10 }}
+      TOKEN_11: ${{ secrets.OPENMUSIC_ACCESS_TOKEN11 }}
+      TOKEN_12: ${{ secrets.OPENMUSIC_ACCESS_TOKEN12 }}
+      TOKEN_13: ${{ secrets.OPENMUSIC_ACCESS_TOKEN13 }}
+      TOKEN_14: ${{ secrets.OPENMUSIC_ACCESS_TOKEN14 }}
+      TOKEN_15: ${{ secrets.OPENMUSIC_ACCESS_TOKEN15 }}
+      TOKEN_16: ${{ secrets.OPENMUSIC_ACCESS_TOKEN16 }}
+      TOKEN_17: ${{ secrets.OPENMUSIC_ACCESS_TOKEN17 }}
+      TOKEN_18: ${{ secrets.OPENMUSIC_ACCESS_TOKEN18 }}
+      TOKEN_19: ${{ secrets.OPENMUSIC_ACCESS_TOKEN19 }}
+      TOKEN_20: ${{ secrets.OPENMUSIC_ACCESS_TOKEN20 }}
+      TOKEN_21: ${{ secrets.OPENMUSIC_ACCESS_TOKEN21 }}
+      TOKEN_22: ${{ secrets.OPENMUSIC_ACCESS_TOKEN22 }}
+      TOKEN_23: ${{ secrets.OPENMUSIC_ACCESS_TOKEN23 }}
+      TOKEN_24: ${{ secrets.OPENMUSIC_ACCESS_TOKEN24 }}
+      TOKEN_25: ${{ secrets.OPENMUSIC_ACCESS_TOKEN25 }}
+      TOKEN_26: ${{ secrets.OPENMUSIC_ACCESS_TOKEN26 }}
+      TOKEN_27: ${{ secrets.OPENMUSIC_ACCESS_TOKEN27 }}
+      TOKEN_28: ${{ secrets.OPENMUSIC_ACCESS_TOKEN28 }}
+      TOKEN_29: ${{ secrets.OPENMUSIC_ACCESS_TOKEN29 }}
+      TOKEN_30: ${{ secrets.OPENMUSIC_ACCESS_TOKEN30 }}
+      TOKEN_31: ${{ secrets.OPENMUSIC_ACCESS_TOKEN31 }}
+      TOKEN_32: ${{ secrets.OPENMUSIC_ACCESS_TOKEN32 }}
+      TOKEN_33: ${{ secrets.OPENMUSIC_ACCESS_TOKEN33 }}
+      OPENMUSIC_COOKIES: ${{ secrets.OPENMUSIC_COOKIES }}
+      OPENMUSIC_EMAIL: ${{ secrets.OPENMUSIC_EMAIL }}
+    steps:
+      - name: Pick configured account numbers
+        id: pick
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          accounts = [i for i in range(1, 34) if os.environ.get(f"TOKEN_{i}", "").strip()]
+          if 1 not in accounts and (
+              os.environ.get("OPENMUSIC_COOKIES", "").strip()
+              or os.environ.get("OPENMUSIC_EMAIL", "").strip()
+          ):
+              accounts.insert(0, 1)
+          print("Configured accounts:", accounts)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"accounts={json.dumps(accounts, separators=(',', ':'))}\n")
+          PY
+
+  autosign:
+    name: account ${{ matrix.account }}
+    needs: [test, select-accounts]
+    if: needs.select-accounts.outputs.accounts != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        account: ${{ fromJson(needs.select-accounts.outputs.accounts) }}
+    env:
+      ACCOUNT_NUMBER: ${{ matrix.account }}
+      TOKEN_1: ${{ secrets.OPENMUSIC_ACCESS_TOKEN }}
+      TOKEN_2: ${{ secrets.OPENMUSIC_ACCESS_TOKEN2 }}
+      TOKEN_3: ${{ secrets.OPENMUSIC_ACCESS_TOKEN3 }}
+      TOKEN_4: ${{ secrets.OPENMUSIC_ACCESS_TOKEN4 }}
+      TOKEN_5: ${{ secrets.OPENMUSIC_ACCESS_TOKEN5 }}
+      TOKEN_6: ${{ secrets.OPENMUSIC_ACCESS_TOKEN6 }}
+      TOKEN_7: ${{ secrets.OPENMUSIC_ACCESS_TOKEN7 }}
+      TOKEN_8: ${{ secrets.OPENMUSIC_ACCESS_TOKEN8 }}
+      TOKEN_9: ${{ secrets.OPENMUSIC_ACCESS_TOKEN9 }}
+      TOKEN_10: ${{ secrets.OPENMUSIC_ACCESS_TOKEN10 }}
+      TOKEN_11: ${{ secrets.OPENMUSIC_ACCESS_TOKEN11 }}
+      TOKEN_12: ${{ secrets.OPENMUSIC_ACCESS_TOKEN12 }}
+      TOKEN_13: ${{ secrets.OPENMUSIC_ACCESS_TOKEN13 }}
+      TOKEN_14: ${{ secrets.OPENMUSIC_ACCESS_TOKEN14 }}
+      TOKEN_15: ${{ secrets.OPENMUSIC_ACCESS_TOKEN15 }}
+      TOKEN_16: ${{ secrets.OPENMUSIC_ACCESS_TOKEN16 }}
+      TOKEN_17: ${{ secrets.OPENMUSIC_ACCESS_TOKEN17 }}
+      TOKEN_18: ${{ secrets.OPENMUSIC_ACCESS_TOKEN18 }}
+      TOKEN_19: ${{ secrets.OPENMUSIC_ACCESS_TOKEN19 }}
+      TOKEN_20: ${{ secrets.OPENMUSIC_ACCESS_TOKEN20 }}
+      TOKEN_21: ${{ secrets.OPENMUSIC_ACCESS_TOKEN21 }}
+      TOKEN_22: ${{ secrets.OPENMUSIC_ACCESS_TOKEN22 }}
+      TOKEN_23: ${{ secrets.OPENMUSIC_ACCESS_TOKEN23 }}
+      TOKEN_24: ${{ secrets.OPENMUSIC_ACCESS_TOKEN24 }}
+      TOKEN_25: ${{ secrets.OPENMUSIC_ACCESS_TOKEN25 }}
+      TOKEN_26: ${{ secrets.OPENMUSIC_ACCESS_TOKEN26 }}
+      TOKEN_27: ${{ secrets.OPENMUSIC_ACCESS_TOKEN27 }}
+      TOKEN_28: ${{ secrets.OPENMUSIC_ACCESS_TOKEN28 }}
+      TOKEN_29: ${{ secrets.OPENMUSIC_ACCESS_TOKEN29 }}
+      TOKEN_30: ${{ secrets.OPENMUSIC_ACCESS_TOKEN30 }}
+      TOKEN_31: ${{ secrets.OPENMUSIC_ACCESS_TOKEN31 }}
+      TOKEN_32: ${{ secrets.OPENMUSIC_ACCESS_TOKEN32 }}
+      TOKEN_33: ${{ secrets.OPENMUSIC_ACCESS_TOKEN33 }}
+      OPENMUSIC_COOKIES: ${{ matrix.account == 1 && secrets.OPENMUSIC_COOKIES || '' }}
+      OPENMUSIC_SESSION_ID: ${{ matrix.account == 1 && secrets.OPENMUSIC_SESSION_ID || '' }}
+      OPENMUSIC_EMAIL: ${{ matrix.account == 1 && secrets.OPENMUSIC_EMAIL || '' }}
+      OPENMUSIC_PASSWORD: ${{ matrix.account == 1 && secrets.OPENMUSIC_PASSWORD || '' }}
+      CHECKIN_ENDPOINT: ${{ secrets.CHECKIN_ENDPOINT }}
+      CHECKIN_BODY_JSON: ${{ secrets.CHECKIN_BODY_JSON }}
+      ALREADY_CLAIMED_CODES: ${{ secrets.ALREADY_CLAIMED_CODES }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Daily sign-in + claim
-        env:
-          OPENMUSIC_COOKIES: ${{ secrets.OPENMUSIC_COOKIES }}
-          OPENMUSIC_ACCESS_TOKEN: ${{ secrets.OPENMUSIC_ACCESS_TOKEN }}
-          OPENMUSIC_SESSION_ID: ${{ secrets.OPENMUSIC_SESSION_ID }}
-          OPENMUSIC_EMAIL: ${{ secrets.OPENMUSIC_EMAIL }}
-          OPENMUSIC_PASSWORD: ${{ secrets.OPENMUSIC_PASSWORD }}
-          CHECKIN_ENDPOINT: ${{ secrets.CHECKIN_ENDPOINT }}
-          CHECKIN_BODY_JSON: ${{ secrets.CHECKIN_BODY_JSON }}
-          ALREADY_CLAIMED_CODES: ${{ secrets.ALREADY_CLAIMED_CODES }}
-        run: python autosign.py
+        run: |
+          set -euo pipefail
+          var="TOKEN_${ACCOUNT_NUMBER}"
+          export OPENMUSIC_ACCESS_TOKEN="${!var}"
+          if [ "${ACCOUNT_NUMBER}" = "1" ]; then
+            secret_name="OPENMUSIC_ACCESS_TOKEN"
+          else
+            secret_name="OPENMUSIC_ACCESS_TOKEN${ACCOUNT_NUMBER}"
+          fi
+          echo "Using account ${ACCOUNT_NUMBER} (${secret_name})"
+          python autosign.py

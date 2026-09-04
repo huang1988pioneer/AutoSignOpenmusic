@@ -2,7 +2,7 @@
 
 每天自動登入 [OpenMusic AI](https://www.openmusic.ai/) 並領取簽到獎賞點數。
 簽到與領獎**只在 GitHub Actions 執行**（官方 HTTP API，非瀏覽器模擬）。
-本機不登入、不存密碼；GitHub Secrets 只放 **一個 cookie 值**：`OPENMUSIC_ACCESS_TOKEN`。
+本機不登入、不存密碼；GitHub Secrets 只放 cookie 值：帳號 1 用 `OPENMUSIC_ACCESS_TOKEN`，帳號 2–33 用 `OPENMUSIC_ACCESS_TOKEN2` … `OPENMUSIC_ACCESS_TOKEN33`。沒設的編號會自動略過。
 
 ## 原理（已逆向驗證）
 
@@ -22,27 +22,28 @@ Google / Apple 帳號也可以：在瀏覽器登入後複製 cookie 即可，不
 
 1. 用瀏覽器登入 [openmusic.ai](https://www.openmusic.ai/)。
 2. `F12` → **Application** → **Cookies** → `https://www.openmusic.ai` → 只複製 **`OPENMUSIC_ACCESS_TOKEN` 的 Value**（一個值）。
-3. 到 repo **Settings → Secrets and variables → Actions** 新增 Secret：
+3. 到 repo **Settings → Secrets and variables → Actions** 新增 Secret（最多 33 個帳號）：
 
    | Secret | 貼什麼 |
    |---|---|
-   | `OPENMUSIC_ACCESS_TOKEN` | 剛才複製的那一個 token 值 |
+   | `OPENMUSIC_ACCESS_TOKEN` | 帳號 1 剛才複製的 token 值 |
+   | `OPENMUSIC_ACCESS_TOKEN2` … `OPENMUSIC_ACCESS_TOKEN33` | 帳號 2–33 各自的 token 值；沒設的編號會自動略過 |
 
-   選填（一般不用設）：`OPENMUSIC_COOKIES`、`CHECKIN_ENDPOINT`、`CHECKIN_BODY_JSON`、`ALREADY_CLAIMED_CODES`
+   選填（一般不用設，僅帳號 1）：`OPENMUSIC_COOKIES`、`CHECKIN_ENDPOINT`、`CHECKIN_BODY_JSON`、`ALREADY_CLAIMED_CODES`
 
 4. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
 排程預設每天 `01:00 UTC`（台北 09:00），改 `.github/workflows/autosign.yml` 的 cron 即可。
-workflow 會用 session cookie 讀簽到狀態再領獎。Cookie 過期時 Actions 會失敗，重新複製貼上 Secret 即可。
+workflow 只會對有設 Secret 的編號開 job（帳號 1 = `OPENMUSIC_ACCESS_TOKEN`，其餘 = `OPENMUSIC_ACCESS_TOKEN{N}`），一次最多並行 5 個帳號。Cookie 過期時 Actions 會失敗，重新複製貼上對應 Secret 即可。
 
-請勿把 token 提交到 Git。過期後再從瀏覽器複製一次、更新同一個 Secret 即可。
+請勿把 token 提交到 Git。過期後再從瀏覽器複製一次、更新對應編號的 Secret 即可。
 
 ## 桌面工具（Windows、macOS、Linux）
 
 參考 [AutoSignOiiOii](https://github.com/huang1988pioneer/AutoSignOiiOii) 的 Avalonia 桌面工具，專案內含 **OpenMusic Flow**：
 
 - GitHub Actions 儀表板：手動觸發每日簽到、看最近成功／失敗與連續天數
-- 帳號設定：本機只存別名與 Email 標籤；複製 Secret 名稱，把瀏覽器 cookie 貼到 GitHub
+- 帳號設定：本機只存別名與 Email 標籤；複製 `OPENMUSIC_ACCESS_TOKEN` … `OPENMUSIC_ACCESS_TOKEN33`，把瀏覽器 cookie 貼到 GitHub
 
 ```bash
 dotnet run --project OpenMusicFlow/OpenMusicFlow.csproj

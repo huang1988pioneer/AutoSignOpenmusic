@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpenMusicFlow.MainWindow"
-        Width="920" Height="760" MinWidth="760" MinHeight="620"
+        Width="980" Height="760" MinWidth="820" MinHeight="620"
         Title="OpenMusic Flow — GitHub Actions 簽到"
         Background="#F6F8FA">
   <Window.Styles>
@@ -22,8 +22,8 @@
         </StackPanel>
         <Border Background="#7C2D12" CornerRadius="8" Padding="14">
           <StackPanel Spacing="7">
-            <TextBlock Text="只要複製一個 token" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="瀏覽器 F12 → Cookies → 複製 OPENMUSIC_ACCESS_TOKEN 的值，貼到 GitHub Secret 同名項目。本機不登入。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
+            <TextBlock Text="最多 33 個帳號 token" FontWeight="SemiBold" Foreground="White" />
+            <TextBlock Text="瀏覽器 F12 → Cookies → 複製 OPENMUSIC_ACCESS_TOKEN 的值。帳號 01 貼到同名 Secret；02–33 貼到 OPENMUSIC_ACCESS_TOKEN2 … TOKEN33。沒設的編號會略過。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
           </StackPanel>
         </Border>
         <StackPanel Spacing="4" Margin="0,8,0,0">
@@ -39,7 +39,7 @@
                   Margin="34,34,18,18"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="18" MaxWidth="590" Margin="0,0,16,24">
+      <StackPanel Spacing="18" MaxWidth="680" Margin="0,0,16,24">
         <StackPanel x:Name="DashboardView" Spacing="18">
           <StackPanel Spacing="5">
             <TextBlock Classes="eyebrow" Text="GITHUB ACTIONS" />
@@ -101,16 +101,16 @@
           <Border x:Name="AccountSection" Classes="panel">
             <StackPanel Spacing="12">
               <TextBlock Text="帳號別名與 Email 標籤" FontWeight="SemiBold" FontSize="16" />
-              <TextBlock Classes="muted" Text="帳號 01 只要一個 GitHub Secret：OPENMUSIC_ACCESS_TOKEN。F12 → Application → Cookies → 複製這個 cookie 的 Value。" FontSize="12" TextWrapping="Wrap" />
+              <TextBlock Classes="muted" Text="每個帳號一個 GitHub Secret。帳號 01：OPENMUSIC_ACCESS_TOKEN；帳號 02：OPENMUSIC_ACCESS_TOKEN2；…帳號 33：OPENMUSIC_ACCESS_TOKEN33。F12 → Application → Cookies → 複製這個 cookie 的 Value。" FontSize="12" TextWrapping="Wrap" />
               <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="AliasListPanel" Spacing="6" />
               </ScrollViewer>
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
-                <Button Click="CopyTokenSecretButton_OnClick">複製 Access Token Secret 名稱</Button>
+                <Button Click="CopyTokenSecretButton_OnClick">複製全部 Secret 名稱</Button>
               </StackPanel>
               <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
-                <TextBlock x:Name="AccountStatusText" Text="準備就緒。只要複製 OPENMUSIC_ACCESS_TOKEN 這一個值，貼到 GitHub Secrets。" Foreground="#29434A" TextWrapping="Wrap" />
+                <TextBlock x:Name="AccountStatusText" Text="準備就緒。帳號 01 用 OPENMUSIC_ACCESS_TOKEN，其餘用 OPENMUSIC_ACCESS_TOKEN2 … OPENMUSIC_ACCESS_TOKEN33。" Foreground="#29434A" TextWrapping="Wrap" />
               </Border>
             </StackPanel>
           </Border>

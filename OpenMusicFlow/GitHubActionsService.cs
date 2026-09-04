@@ -83,7 +83,7 @@ internal sealed class GitHubActionsService
             latest,
             accounts,
             accounts.Where(account => account.IsSuccessful).ToArray(),
-            accounts.Where(account => account.IsCompleted && !account.IsSuccessful).ToArray(),
+            accounts.Where(account => account.IsFailed).ToArray(),
             lastSuccessfulActionTime,
             lastFailedActionTime,
             consecutiveSuccessActionDays,
@@ -102,11 +102,14 @@ internal sealed class GitHubActionsService
         foreach (var job in jobs.EnumerateArray())
         {
             var name = GetString(job, "name");
+            if (!name.StartsWith("account ", StringComparison.OrdinalIgnoreCase)) continue;
             var status = GetString(job, "status");
             var conclusion = GetString(job, "conclusion");
-            results.Add(new AccountResult(index++, name, status, conclusion));
+            var number = ParseAccountNumber(name, index);
+            results.Add(new AccountResult(number, name, status, conclusion));
+            index++;
         }
-        return results.ToArray();
+        return results.OrderBy(account => account.Number).ToArray();
     }
 
     private static async Task<string?> TryGitRemoteAsync()
@@ -188,6 +191,16 @@ internal sealed class GitHubActionsService
         catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei"); }
     }
 
+    internal static int ParseAccountNumber(string jobName, int fallback)
+    {
+        var suffix = jobName.Trim();
+        const string prefix = "account ";
+        if (suffix.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            suffix = suffix[prefix.Length..];
+        var digits = new string(suffix.TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var number) && number > 0 ? number : fallback;
+    }
+
     private static string GetString(JsonElement element, string propertyName) =>
         element.TryGetProperty(propertyName, out var property) && property.ValueKind != JsonValueKind.Null
             ? property.GetString() ?? string.Empty
@@ -213,6 +226,10 @@ internal sealed record AccountResult(int Number, string Alias, string Status, st
 {
     public bool IsSuccessful => string.Equals(Conclusion, "success", StringComparison.OrdinalIgnoreCase);
     public bool IsCompleted => string.Equals(Status, "completed", StringComparison.OrdinalIgnoreCase);
+    public bool IsSkipped =>
+        string.Equals(Conclusion, "skipped", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Conclusion, "cancelled", StringComparison.OrdinalIgnoreCase);
+    public bool IsFailed => IsCompleted && !IsSuccessful && !IsSkipped;
 }
 
 internal sealed record DashboardSnapshot(

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -7,8 +8,10 @@ namespace OpenMusicFlow;
 
 public partial class MainWindow : Window
 {
-    private const int AccountCount = 10;
-    private const string TokenSecretName = "OPENMUSIC_ACCESS_TOKEN";
+    internal const int AccountCount = 33;
+
+    internal static string AccessTokenSecretName(int accountNumber) =>
+        accountNumber <= 1 ? "OPENMUSIC_ACCESS_TOKEN" : $"OPENMUSIC_ACCESS_TOKEN{accountNumber}";
 
     private readonly GitHubActionsService _githubActions = new();
     private readonly Dictionary<int, TextBox> _aliasInputs = new();
@@ -34,9 +37,11 @@ public partial class MainWindow : Window
 
     private async void CopyTokenSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(TokenSecretName);
+        var names = string.Join(Environment.NewLine,
+            Enumerable.Range(1, AccountCount).Select(AccessTokenSecretName));
+        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(names);
         AccountStatusText.Text =
-            $"已複製 {TokenSecretName}。到瀏覽器 Cookies 複製這一個值貼上即可，不必再複製 SESSION_ID。";
+            "已複製 OPENMUSIC_ACCESS_TOKEN … OPENMUSIC_ACCESS_TOKEN33。帳號 01 無後綴；2–33 為同名加編號。沒設的編號會自動略過。";
     }
 
     private async void TriggerClaimButton_OnClick(object? sender, RoutedEventArgs e)
@@ -113,9 +118,11 @@ public partial class MainWindow : Window
         ActionAccountResultsPanel.Children.Clear();
         foreach (var account in snapshot.Accounts)
         {
-            var result = account.IsSuccessful
-                ? "成功"
-                : account.IsCompleted ? "失敗" : account.Status;
+            var result = account.IsSkipped
+                ? "未設定"
+                : account.IsSuccessful
+                    ? "成功"
+                    : account.IsCompleted ? "失敗" : account.Status;
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("78,160,*") };
             row.Children.Add(new TextBlock { Text = $"Job {account.Number:00}", FontWeight = FontWeight.SemiBold });
             var aliasText = new TextBlock { Text = account.Alias, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -128,7 +135,10 @@ public partial class MainWindow : Window
         }
 
         if (snapshot.Accounts.Length == 0)
-            ActionAccountResultsPanel.Children.Add(new TextBlock { Text = "最新 run 尚未建立 job；請稍後再更新。" });
+            ActionAccountResultsPanel.Children.Add(new TextBlock
+            {
+                Text = "最新 run 沒有帳號 job。沒設 OPENMUSIC_ACCESS_TOKEN / TOKEN2…TOKEN33 的編號會自動略過。",
+            });
     }
 
     private static string FormatActionTime(DateTimeOffset? actionTime) =>
@@ -142,13 +152,13 @@ public partial class MainWindow : Window
             var profile = _accounts.TryGetValue(number, out var existing) ? existing : new AccountProfile();
             var aliasInput = new TextBox
             {
-                Width = 160,
+                Width = 130,
                 Watermark = "別名（可留白）",
                 Text = profile.Alias,
             };
             var emailInput = new TextBox
             {
-                Width = 240,
+                Width = 200,
                 Watermark = "Email",
                 Text = profile.Email,
             };
@@ -164,6 +174,15 @@ public partial class MainWindow : Window
             _aliasInputs[number] = aliasInput;
             _emailInputs[number] = emailInput;
 
+            var secretName = AccessTokenSecretName(number);
+            var copyButton = new Button { Content = "複製 Secret 名稱", Padding = new Thickness(10, 4) };
+            copyButton.Click += async (_, _) =>
+            {
+                if (Clipboard is { } clipboard) await clipboard.SetTextAsync(secretName);
+                AccountStatusText.Text =
+                    $"已複製 {secretName}。到 GitHub Secrets 新增同名項目，貼上帳號 {accountNumber:00} 的 OPENMUSIC_ACCESS_TOKEN cookie 值。";
+            };
+
             var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10 };
             row.Children.Add(new TextBlock
             {
@@ -173,6 +192,7 @@ public partial class MainWindow : Window
             });
             row.Children.Add(aliasInput);
             row.Children.Add(emailInput);
+            row.Children.Add(copyButton);
             AliasListPanel.Children.Add(row);
         }
     }

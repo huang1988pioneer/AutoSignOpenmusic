@@ -3,8 +3,10 @@
 Pure stdlib (urllib). No third-party dependencies.
 
 Auth (GitHub Secrets):
-  * OPENMUSIC_ACCESS_TOKEN     one cookie value from the browser (preferred)
-  * OPENMUSIC_COOKIES          optional full Cookie header
+  * OPENMUSIC_ACCESS_TOKEN     account 1 cookie value from the browser (preferred)
+  * OPENMUSIC_ACCESS_TOKEN2 … OPENMUSIC_ACCESS_TOKEN33
+                               extra accounts; the workflow maps each to this env var
+  * OPENMUSIC_COOKIES          optional full Cookie header (account 1)
   * OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5)  optional email-account fallback
 
 Flow (reverse-engineered from the production web client, chunk 13471):
