@@ -1,7 +1,7 @@
 # AutoSignOpenmusic
 
-每天自動登入 [OpenMusic AI](https://www.openmusic.ai/) 並領取簽到獎賞點數，
-走官方 HTTP API（非瀏覽器模擬），跑在 GitHub Actions 排程上。
+每天自動登入 [OpenMusic AI](https://www.openmusic.ai/) 並領取簽到獎賞點數。
+登入、簽到與領獎**只在 GitHub Actions 執行**（官方 HTTP API，非瀏覽器模擬），本機不登入、不存密碼。
 
 ## 原理（已逆向驗證）
 
@@ -20,62 +20,48 @@
 
 ## 快速開始
 
-1. 建 repo 並推上 GitHub（本目錄已 `git init` 就緒，直接 `add/commit/push`）。
+1. 帳密只放在 GitHub Secrets，不要寫進程式碼、也不要在本機跑登入。
 2. 到 repo **Settings → Secrets and variables → Actions** 新增：
    - `OPENMUSIC_EMAIL`：登入 email
-   - `OPENMUSIC_PASSWORD`：登入密碼（只存 GitHub Secrets，不進程式碼；
-     腳本送出前會先做前端同款 MD5）
+   - `OPENMUSIC_PASSWORD`：登入密碼（只存 GitHub Secrets；
+     Actions 送出前會先做前端同款 MD5）
    - `CHECKIN_ENDPOINT`（選填）：覆寫領獎路徑，預設已是 `POST api/activity/check-in/claim`
    - `CHECKIN_BODY_JSON`（選填）：覆寫 body；預設會帶 status 回的 `activity_id`
    - `ALREADY_CLAIMED_CODES`（選填）：視為「已領過」的 code
 3. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
 排程預設每天 `01:00 UTC`（台北 09:00），改 `.github/workflows/autosign.yml` 的 cron 即可。
+workflow 會依序：登入 → 讀簽到狀態 → 領獎。
 
 ## 桌面工具（Windows、macOS、Linux）
 
 參考 [AutoSignOiiOii](https://github.com/huang1988pioneer/AutoSignOiiOii) 的 Avalonia 桌面工具，專案內含 **OpenMusic Flow**：
 
 - GitHub Actions 儀表板：手動觸發每日簽到、看最近成功／失敗與連續天數
-- 帳號設定：本機只存別名與 Email，不存密碼
-- 本機登入與領獎：Email + 密碼走官方 API（MD5），可先測試登入再領獎
+- 帳號設定：本機只存別名與 Email，不存密碼、也不在本機登入或領獎
 
 ```bash
 dotnet run --project OpenMusicFlow/OpenMusicFlow.csproj
 ```
 
-儀表板需要 [GitHub CLI](https://cli.github.com/)（`gh auth login`），且此 repo 已 push 到 GitHub。本機領獎不需要 `gh`。
+儀表板需要 [GitHub CLI](https://cli.github.com/)（`gh auth login`），且此 repo 已 push 到 GitHub。
 
-## 本機使用
+## 單元測試
+
+`autosign.py` 只給 GitHub Actions 用。本機可跑 mock 測試（不碰真站、不登入）：
 
 ```bash
-python -m unittest test_autosign          # mock 單元測試（不碰真站）
-OPENMUSIC_EMAIL=... OPENMUSIC_PASSWORD=... python autosign.py --probe
-OPENMUSIC_EMAIL=... OPENMUSIC_PASSWORD=... python autosign.py
+python -m unittest test_autosign
 ```
 
 全 stdlib，無第三方依賴，Python 3.10+ 即可。
 
-## Playwright 測真實流程
+## Playwright（GitHub Actions 驗證 API 形狀）
 
-用瀏覽器跑官方前端（登入表單 → 攔截 API → 有帳號時點簽到／領獎）。
-用來確認登入 MD5、簽到 status 路由，以及有帳號時的 Claim 點擊。
+工作流 `Playwright login flow` 在 GitHub Actions 跑官方前端，用來確認登入 MD5 與簽到 status 路由。
+若 repo secrets 裡有帳密，live claim 測試也會一併在 Actions 執行。
 
-```bash
-pip install -r requirements-dev.txt
-python -m playwright install chromium
-
-python -m unittest test_playwright_flow -v     # 無帳號：登入頁 + MD5 登入 API
-python playwright_flow.py                      # 同上，JSON 輸出
-OPENMUSIC_EMAIL=... OPENMUSIC_PASSWORD=... python playwright_flow.py --live
-OPENMUSIC_EMAIL=... OPENMUSIC_PASSWORD=... python playwright_flow.py --live --headed
-```
-
-無帳號時會對未註冊 email 打一次登入，確認前端把密碼做成 MD5 再 POST `/common-api/v1/login`。
-有帳號時會進站、點 header 的 **Earn Credits**、再點 Claim，
-並把攔截到的 API 寫到 `artifacts/playwright-capture.json`。
-
-GitHub Actions 工作流 `Playwright login flow` 可手動或每週跑；若 repo secrets 裡有帳密，live claim 測試也會一併執行。
+本機不需要、也不建議帶帳密跑 Playwright。
 
 ## 風險
 

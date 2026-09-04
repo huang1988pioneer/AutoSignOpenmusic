@@ -8,6 +8,9 @@ namespace OpenMusicFlow;
 public partial class MainWindow : Window
 {
     private const int AccountCount = 10;
+    private const string EmailSecretName = "OPENMUSIC_EMAIL";
+    private const string PasswordSecretName = "OPENMUSIC_PASSWORD";
+
     private readonly GitHubActionsService _githubActions = new();
     private readonly Dictionary<int, TextBox> _aliasInputs = new();
     private readonly Dictionary<int, TextBox> _emailInputs = new();
@@ -16,122 +19,30 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        AccountComboBox.ItemsSource = Enumerable.Range(1, AccountCount).Select(number => $"帳號 {number:00}").ToArray();
-        AccountComboBox.SelectionChanged += (_, _) => UpdateSelectedAccount();
         BuildAliasList();
-        UpdateSelectedAccount();
-    }
-
-    private int AccountNumber => Math.Max(1, AccountComboBox.SelectedIndex + 1);
-    private AccountProfile Profile => _accounts.TryGetValue(AccountNumber, out var profile)
-        ? profile
-        : _accounts[AccountNumber] = new AccountProfile();
-
-    private string EmailSecretName => AccountNumber == 1 ? "OPENMUSIC_EMAIL" : $"OPENMUSIC_EMAIL_{AccountNumber}";
-    private string PasswordSecretName => AccountNumber == 1 ? "OPENMUSIC_PASSWORD" : $"OPENMUSIC_PASSWORD_{AccountNumber}";
-
-    private void UpdateSelectedAccount()
-    {
-        SecretNameText.Text = $"{EmailSecretName} / {PasswordSecretName}";
-        var alias = Profile.Alias;
-        AccountAliasText.Text = alias;
-        AccountAliasText.IsVisible = !string.IsNullOrWhiteSpace(alias);
-        if (!string.IsNullOrWhiteSpace(Profile.Email))
-            EmailTextBox.Text = Profile.Email;
-        ResultText.Text = AccountNumber == 1
-            ? "帳號 01 對應 GitHub Actions 目前使用的 OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD。"
-            : $"帳號 {AccountNumber:00} 的 Secret 名稱為 {EmailSecretName} / {PasswordSecretName}。目前 workflow 只讀帳號 01。";
     }
 
     private void DashboardNavButton_OnClick(object? sender, RoutedEventArgs e) => ShowView(DashboardView);
 
     private void AccountNavButton_OnClick(object? sender, RoutedEventArgs e) => ShowView(AccountView);
 
-    private void LoginNavButton_OnClick(object? sender, RoutedEventArgs e) => ShowView(LoginView);
-
     private void ShowView(Control view)
     {
         DashboardView.IsVisible = view == DashboardView;
         AccountView.IsVisible = view == AccountView;
-        LoginView.IsVisible = view == LoginView;
         view.BringIntoView();
-    }
-
-    private async void TestLoginButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (!TryReadCredentials(out var email, out var password)) return;
-        SetBusy(true);
-        StatusText.Text = "正在測試登入…";
-        try
-        {
-            using var client = new OpenMusicClient();
-            await client.LoginAsync(email, password);
-            var user = await client.GetUserAsync();
-            var status = await client.GetCheckInStatusAsync();
-            var already = status.TryGetProperty("today_checked_in", out var checkedIn) &&
-                          checkedIn.ValueKind == JsonValueKind.True;
-            StatusText.Text =
-                $"登入成功。{OpenMusicClient.SummarizeUser(user)}" +
-                (already ? " 今天已簽到。" : " 今天尚未領獎。");
-            RememberEmail(email);
-        }
-        catch (Exception exception)
-        {
-            StatusText.Text = $"登入失敗：{exception.Message}";
-        }
-        finally
-        {
-            SetBusy(false);
-        }
-    }
-
-    private async void ClaimButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (!TryReadCredentials(out var email, out var password)) return;
-        SetBusy(true);
-        StatusText.Text = "正在登入並領取簽到獎賞…";
-        try
-        {
-            using var client = new OpenMusicClient();
-            var result = await client.RunClaimAsync(email, password);
-            StatusText.Text = result.AlreadyClaimed
-                ? $"今天已領過。{result.Before}"
-                : $"領獎完成。{result.After}";
-            ResultText.Text = result.Log.Trim();
-            RememberEmail(email);
-        }
-        catch (Exception exception)
-        {
-            StatusText.Text = $"領獎失敗：{exception.Message}";
-        }
-        finally
-        {
-            SetBusy(false);
-        }
     }
 
     private async void CopyEmailSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(EmailSecretName);
-        StatusText.Text = $"已複製 {EmailSecretName}。";
+        AccountStatusText.Text = $"已複製 {EmailSecretName}。請到 GitHub Secrets 貼上 Email。";
     }
 
     private async void CopyPasswordSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
         if (Clipboard is { } clipboard) await clipboard.SetTextAsync(PasswordSecretName);
-        StatusText.Text = $"已複製 {PasswordSecretName}。請到 GitHub Secrets 貼上密碼，不要把密碼提交到 Git。";
-    }
-
-    private async void CopyEmailValueButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        var email = EmailTextBox.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            StatusText.Text = "請先輸入 Email。";
-            return;
-        }
-        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(email);
-        StatusText.Text = "已複製 Email。";
+        AccountStatusText.Text = $"已複製 {PasswordSecretName}。請到 GitHub Secrets 貼上密碼，不要把密碼提交到 Git。";
     }
 
     private async void TriggerClaimButton_OnClick(object? sender, RoutedEventArgs e)
@@ -142,7 +53,7 @@ public partial class MainWindow : Window
         try
         {
             await _githubActions.TriggerClaimAsync();
-            DashboardStatusText.Text = "已觸發每日簽到 workflow。啟動後按「更新執行結果」即可查看進度。";
+            DashboardStatusText.Text = "已觸發每日簽到 workflow。GitHub Actions 會負責登入、簽到與領獎；啟動後按「更新執行結果」即可查看進度。";
         }
         catch (Exception exception)
         {
@@ -253,7 +164,6 @@ public partial class MainWindow : Window
                 _accounts[accountNumber] = new AccountProfile(
                     aliasInput.Text?.Trim() ?? string.Empty,
                     emailInput.Text?.Trim() ?? string.Empty);
-                if (accountNumber == AccountNumber) UpdateSelectedAccount();
             }
             aliasInput.TextChanged += (_, _) => Sync();
             emailInput.TextChanged += (_, _) => Sync();
@@ -287,33 +197,7 @@ public partial class MainWindow : Window
             .Where(pair => !pair.Value.IsEmpty)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         await File.WriteAllTextAsync(AccountsFile, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
-        UpdateSelectedAccount();
-        StatusText.Text = "帳號別名與 Email 已儲存在這台電腦（不含密碼）。";
-    }
-
-    private bool TryReadCredentials(out string email, out string password)
-    {
-        email = EmailTextBox.Text?.Trim() ?? string.Empty;
-        password = PasswordTextBox.Text ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-        {
-            StatusText.Text = "請輸入 Email 與密碼。";
-            return false;
-        }
-        return true;
-    }
-
-    private void RememberEmail(string email)
-    {
-        Profile.Email = email;
-        if (_emailInputs.TryGetValue(AccountNumber, out var input))
-            input.Text = email;
-    }
-
-    private void SetBusy(bool busy)
-    {
-        TestLoginButton.IsEnabled = !busy;
-        ClaimButton.IsEnabled = !busy;
+        AccountStatusText.Text = "帳號別名與 Email 已儲存在這台電腦（不含密碼）。登入簽到仍只由 GitHub Actions 執行。";
     }
 
     private static string AccountsFile => Path.Combine(

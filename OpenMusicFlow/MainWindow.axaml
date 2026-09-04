@@ -1,14 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpenMusicFlow.MainWindow"
-        Width="920" Height="840" MinWidth="760" MinHeight="680"
-        Title="OpenMusic Flow — 自動簽到"
+        Width="920" Height="760" MinWidth="760" MinHeight="620"
+        Title="OpenMusic Flow — GitHub Actions 簽到"
         Background="#F6F8FA">
   <Window.Styles>
     <Style Selector="Border.panel"><Setter Property="Background" Value="White" /><Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="24" /></Style>
     <Style Selector="TextBlock.eyebrow"><Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#C2410C" /></Style>
     <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#52606D" /></Style>
-    <Style Selector="TextBlock.stepNumber"><Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="Bold" /><Setter Property="Foreground" Value="#C2410C" /></Style>
     <Style Selector="Button.primary"><Setter Property="Background" Value="#EA580C" /><Setter Property="Foreground" Value="White" /><Setter Property="Padding" Value="18,10" /></Style>
     <Style Selector="Button.sidebarNav"><Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="#F3D5C2" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="Padding" Value="12,9" /><Setter Property="CornerRadius" Value="6" /></Style>
     <Style Selector="Button.sidebarNav:pointerover"><Setter Property="Background" Value="#7C2D12" /><Setter Property="Foreground" Value="White" /></Style>
@@ -18,20 +17,19 @@
       <StackPanel Spacing="20">
         <StackPanel Spacing="5">
           <TextBlock Text="OpenMusic Flow" FontSize="22" FontWeight="Bold" Foreground="White" />
-          <TextBlock Text="自動登入並領取簽到獎賞" Foreground="#F3D5C2" />
-          <TextBlock Text="GitHub Actions 每日&#10;台北時間 09:00&#10;（01:00 UTC）執行。" TextWrapping="Wrap" FontSize="11" Foreground="#E7B9A0" />
+          <TextBlock Text="只透過 GitHub Actions 登入、簽到與領獎" TextWrapping="Wrap" Foreground="#F3D5C2" />
+          <TextBlock Text="每日台北時間 09:00&#10;（01:00 UTC）自動執行。" TextWrapping="Wrap" FontSize="11" Foreground="#E7B9A0" />
         </StackPanel>
         <Border Background="#7C2D12" CornerRadius="8" Padding="14">
           <StackPanel Spacing="7">
-            <TextBlock Text="密碼不寫進程式碼" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="本機只記住 email 與別名。密碼只在領獎當下使用，或由你自行貼到 GitHub Secrets。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
+            <TextBlock Text="本機不登入、不存密碼" FontWeight="SemiBold" Foreground="White" />
+            <TextBlock Text="帳密只放在 GitHub Secrets。桌面工具只觸發 workflow 與查看結果。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
           </StackPanel>
         </Border>
         <StackPanel Spacing="4" Margin="0,8,0,0">
           <TextBlock Text="主要功能" FontWeight="SemiBold" Foreground="#F3D5C2" Margin="0,0,0,4" />
           <Button Classes="sidebarNav" Click="DashboardNavButton_OnClick">GitHub Actions 儀表板</Button>
           <Button Classes="sidebarNav" Click="AccountNavButton_OnClick">帳號設定</Button>
-          <Button Classes="sidebarNav" Click="LoginNavButton_OnClick">本機登入與領獎</Button>
         </StackPanel>
         <TextBlock Margin="0,20,0,0" Text="Google / Apple 登入無法用 API 自動化，請使用 Email + 密碼帳號。" TextWrapping="Wrap" FontSize="12" Foreground="#E7B9A0" />
       </StackPanel>
@@ -46,7 +44,7 @@
           <StackPanel Spacing="5">
             <TextBlock Classes="eyebrow" Text="GITHUB ACTIONS" />
             <TextBlock Text="執行儀表板" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="手動觸發每日簽到、查看最新 workflow 結果與連續成功天數。" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" Text="登入、簽到與領獎都在 GitHub Actions 執行。這裡只負責手動觸發與查看結果。" TextWrapping="Wrap" />
           </StackPanel>
 
           <Border x:Name="DashboardSection" Classes="panel">
@@ -98,76 +96,24 @@
           <StackPanel Spacing="5">
             <TextBlock Classes="eyebrow" Text="ACCOUNT SETTINGS" />
             <TextBlock Text="帳號設定" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="名稱與 Email 只存在這台電腦。密碼請勿寫進程式碼或提交到 Git。" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" Text="名稱與 Email 只存在這台電腦，方便對照 GitHub Secrets。登入、簽到與領獎不會在本機執行。" TextWrapping="Wrap" />
           </StackPanel>
           <Border x:Name="AccountSection" Classes="panel">
             <StackPanel Spacing="12">
               <TextBlock Text="帳號別名與 Email" FontWeight="SemiBold" FontSize="16" />
-              <TextBlock Classes="muted" Text="帳號 01 對應 GitHub Secrets：OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD。" FontSize="12" />
+              <TextBlock Classes="muted" Text="帳號 01 對應 GitHub Secrets：OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD。密碼只貼到 GitHub，不要寫進程式碼。" FontSize="12" TextWrapping="Wrap" />
               <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="AliasListPanel" Spacing="6" />
               </ScrollViewer>
-              <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
+                <Button Click="CopyEmailSecretButton_OnClick">複製 Email Secret 名稱</Button>
+                <Button Click="CopyPasswordSecretButton_OnClick">複製 Password Secret 名稱</Button>
+              </StackPanel>
+              <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
+                <TextBlock x:Name="AccountStatusText" Text="準備就緒。請把帳密貼到 GitHub Secrets，由 Actions 登入簽到與領獎。" Foreground="#29434A" TextWrapping="Wrap" />
+              </Border>
             </StackPanel>
-          </Border>
-        </StackPanel>
-
-        <StackPanel x:Name="LoginView" Spacing="18" IsVisible="False">
-          <StackPanel Spacing="5">
-            <TextBlock Classes="eyebrow" Text="LOCAL CLAIM" />
-            <TextBlock Text="本機登入與領獎" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="走官方 HTTP API：登入 → 讀簽到狀態 → POST claim。不開瀏覽器、不繞過驗證碼。" TextWrapping="Wrap" />
-          </StackPanel>
-          <Border Classes="panel">
-            <Grid ColumnDefinitions="42,*">
-              <TextBlock Classes="stepNumber" Text="01" VerticalAlignment="Center" />
-              <StackPanel Grid.Column="1" Spacing="12">
-                <TextBlock Text="選擇帳號" FontWeight="SemiBold" FontSize="16" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                  <StackPanel Spacing="4">
-                    <ComboBox x:Name="AccountComboBox" Width="130" SelectedIndex="0" />
-                    <TextBlock x:Name="AccountAliasText" Classes="muted" FontSize="12" IsVisible="False" />
-                  </StackPanel>
-                  <Border Background="#FFEDD5" CornerRadius="6" Padding="12,7">
-                    <TextBlock x:Name="SecretNameText" Text="OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD" Foreground="#9A3412" FontFamily="Consolas" FontSize="12" />
-                  </Border>
-                </StackPanel>
-              </StackPanel>
-            </Grid>
-          </Border>
-          <Border x:Name="LoginSection" Classes="panel">
-            <Grid ColumnDefinitions="42,*">
-              <TextBlock Classes="stepNumber" Text="02" VerticalAlignment="Top" />
-              <StackPanel Grid.Column="1" Spacing="11">
-                <TextBlock Text="Email + 密碼登入" FontWeight="SemiBold" FontSize="16" />
-                <TextBlock Classes="muted" Text="密碼會依官網前端同款做成 MD5 再送出。Google / Apple 帳號無法使用。" TextWrapping="Wrap" />
-                <TextBox x:Name="EmailTextBox" Watermark="Email" />
-                <TextBox x:Name="PasswordTextBox" Watermark="Password" PasswordChar="*" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button x:Name="TestLoginButton" Click="TestLoginButton_OnClick">測試登入</Button>
-                  <Button x:Name="ClaimButton" Classes="primary" Click="ClaimButton_OnClick">登入並領獎</Button>
-                </StackPanel>
-              </StackPanel>
-            </Grid>
-          </Border>
-
-          <Border Classes="panel">
-            <Grid ColumnDefinitions="42,*">
-              <TextBlock Classes="stepNumber" Text="03" VerticalAlignment="Top" />
-              <StackPanel Grid.Column="1" Spacing="8">
-                <TextBlock Text="複製 GitHub Secret 名稱" FontWeight="SemiBold" FontSize="16" />
-                <TextBlock x:Name="ResultText" Classes="muted" Text="領獎完成後，把 Email / 密碼貼到對應的 GitHub Secrets，Actions 就會每天自動跑。" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button x:Name="CopyEmailSecretButton" Click="CopyEmailSecretButton_OnClick">複製 Email Secret 名稱</Button>
-                  <Button x:Name="CopyPasswordSecretButton" Click="CopyPasswordSecretButton_OnClick">複製 Password Secret 名稱</Button>
-                  <Button x:Name="CopyEmailValueButton" Click="CopyEmailValueButton_OnClick">複製 Email</Button>
-                </StackPanel>
-              </StackPanel>
-            </Grid>
-          </Border>
-
-          <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
-            <TextBlock x:Name="StatusText" Text="準備就緒。" Foreground="#29434A" TextWrapping="Wrap" />
           </Border>
         </StackPanel>
       </StackPanel>
