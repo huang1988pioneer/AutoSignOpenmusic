@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Weekly smoke: login page + API shape. Live claim runs if secrets exist.
-    - cron: "0 2 * * 1"
+    - cron: "27 2 * * 1"
 
 jobs:
   e2e:

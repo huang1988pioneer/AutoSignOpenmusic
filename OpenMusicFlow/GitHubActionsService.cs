@@ -1,245 +1,184 @@
-using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace OpenMusicFlow;
 
-internal sealed class GitHubActionsService
+internal interface IGitHubActionsService
+{
+    Task<string> ResolveRepositoryAsync(string? repository, CancellationToken cancellationToken);
+    Task CheckConnectionAsync(string repository, CancellationToken cancellationToken);
+    Task TriggerClaimAsync(string repository, CancellationToken cancellationToken);
+    Task SetAccessTokenAsync(string repository, int accountNumber, string token, CancellationToken cancellationToken);
+    Task<DashboardSnapshot> GetSnapshotAsync(string repository, decimal pointsPerClaim, CancellationToken cancellationToken);
+}
+
+internal sealed class GitHubActionsService(ICommandRunner? runner = null) : IGitHubActionsService
 {
     public const string WorkflowFile = "autosign.yml";
-    public const string WorkflowName = "OpenMusic daily autosign";
+    public const int HistoryLimit = 100;
+    private readonly ICommandRunner _runner = runner ?? new CommandRunner();
 
-    public async Task<string> ResolveRepositoryAsync()
+    public async Task<string> ResolveRepositoryAsync(string? repository, CancellationToken cancellationToken)
     {
-        try
-        {
-            var json = await RunGhAsync("repo", "view", "--json", "nameWithOwner");
-            using var document = JsonDocument.Parse(json);
-            if (document.RootElement.TryGetProperty("nameWithOwner", out var name) &&
-                name.GetString() is { Length: > 0 } repo)
-                return repo;
-        }
-        catch (InvalidOperationException)
-        {
-            // Fall through to git remote.
-        }
+        if (!string.IsNullOrWhiteSpace(repository))
+            return ParseGitHubRepo(repository) ?? throw new InvalidOperationException(
+                "請輸入 owner/repository 或完整 GitHub 儲存庫網址。");
 
-        var remote = await TryGitRemoteAsync();
-        if (!string.IsNullOrWhiteSpace(remote)) return remote;
-        throw new InvalidOperationException(
-            "找不到 GitHub 儲存庫。請先設定 git remote，並安裝並登入 GitHub CLI（gh auth login）。");
+        foreach (var directory in RepositoryDirectories())
+        {
+            try
+            {
+                var remote = await _runner.RunAsync("git", ["remote", "get-url", "origin"], directory, cancellationToken);
+                if (ParseGitHubRepo(remote) is { } detected) return detected;
+            }
+            catch (InvalidOperationException) { }
+        }
+        throw new InvalidOperationException("無法自動偵測 GitHub 儲存庫。請填入你的 owner/repository，並儲存設定。");
     }
 
-    public async Task TriggerClaimAsync()
+    public async Task CheckConnectionAsync(string repository, CancellationToken cancellationToken)
     {
-        var repo = await ResolveRepositoryAsync();
-        await RunGhAsync("workflow", "run", WorkflowFile, "--repo", repo);
+        var repo = await ResolveRepositoryAsync(repository, cancellationToken);
+        await RunGhAsync(cancellationToken, "repo", "view", repo, "--json", "nameWithOwner");
     }
 
-    public async Task<DashboardSnapshot> GetSnapshotAsync(decimal pointsPerClaim)
+    public async Task TriggerClaimAsync(string repository, CancellationToken cancellationToken)
     {
-        var repo = await ResolveRepositoryAsync();
-        var runsJson = await RunGhAsync(
-            "run", "list", "--workflow", WorkflowFile, "--repo", repo, "--limit", "100",
-            "--json", "databaseId,createdAt,conclusion,status,url,event,displayTitle,name");
-        var runs = JsonSerializer.Deserialize<List<WorkflowRun>>(runsJson, JsonOptions) ?? [];
+        var repo = await ResolveRepositoryAsync(repository, cancellationToken);
+        await RunGhAsync(cancellationToken, "workflow", "run", WorkflowFile, "--repo", repo);
+    }
+
+    public async Task SetAccessTokenAsync(string repository, int accountNumber, string token, CancellationToken cancellationToken)
+    {
+        var repo = await ResolveRepositoryAsync(repository, cancellationToken);
+        OpenMusicTokenValidator.ValidateCookieValue(token);
+        await _runner.RunAsync("gh", ["secret", "set", AccountProfile.SecretName(accountNumber), "--app", "actions", "--repo", repo],
+            null, cancellationToken, standardInput: token, sensitive: true);
+    }
+
+    public async Task<DashboardSnapshot> GetSnapshotAsync(string repository, decimal pointsPerClaim, CancellationToken cancellationToken)
+    {
+        var repo = await ResolveRepositoryAsync(repository, cancellationToken);
+        var json = await RunGhAsync(cancellationToken, "run", "list", "--workflow", WorkflowFile, "--repo", repo,
+            "--limit", HistoryLimit.ToString(CultureInfo.InvariantCulture),
+            "--json", "databaseId,createdAt,conclusion,status,url,event");
+        var runs = JsonSerializer.Deserialize<List<WorkflowRun>>(json, JsonOptions) ?? [];
         var latest = runs.OrderByDescending(run => run.CreatedAt).FirstOrDefault();
-
-        var timeZone = GetTaipeiTimeZone();
-        var successfulRuns = runs
-            .Where(run => run.IsSuccessful)
-            .OrderByDescending(run => run.CreatedAt)
-            .ToArray();
-        var failedRuns = runs
-            .Where(run => run.IsFailed)
-            .OrderByDescending(run => run.CreatedAt)
-            .ToArray();
-        var successfulDates = successfulRuns
-            .Select(run => TimeZoneInfo.ConvertTime(run.CreatedAt, timeZone).Date)
-            .ToHashSet();
-        var today = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone).Date;
-        var monthStart = new DateTime(today.Year, today.Month, 1);
-
-        var consecutiveSuccessActionDays = 0;
-        while (successfulDates.Contains(today.AddDays(-consecutiveSuccessActionDays)))
-            consecutiveSuccessActionDays++;
-
-        var lastSuccessfulActionTime = successfulRuns.FirstOrDefault() is { } successfulRun
-            ? TimeZoneInfo.ConvertTime(successfulRun.CreatedAt, timeZone)
-            : (DateTimeOffset?)null;
-        var lastFailedActionTime = failedRuns.FirstOrDefault() is { } failedRun
-            ? TimeZoneInfo.ConvertTime(failedRun.CreatedAt, timeZone)
-            : (DateTimeOffset?)null;
-
-        var monthlySuccessfulClaims = successfulRuns
-            .Select(run => TimeZoneInfo.ConvertTime(run.CreatedAt, timeZone).Date)
-            .Where(date => date >= monthStart)
-            .Distinct()
-            .Count();
-
-        var accounts = latest is null ? [] : await GetJobResultsAsync(repo, latest.DatabaseId);
-
-        return new DashboardSnapshot(
-            repo,
-            latest,
-            accounts,
-            accounts.Where(account => account.IsSuccessful).ToArray(),
-            accounts.Where(account => account.IsFailed).ToArray(),
-            lastSuccessfulActionTime,
-            lastFailedActionTime,
-            consecutiveSuccessActionDays,
-            pointsPerClaim,
-            monthlySuccessfulClaims * pointsPerClaim);
+        var accounts = latest is null ? [] : ParseJobResults(await RunGhAsync(cancellationToken, "run", "view",
+            latest.DatabaseId.ToString(CultureInfo.InvariantCulture), "--repo", repo, "--json", "jobs"));
+        return CreateSnapshot(repo, runs, accounts, pointsPerClaim, DateTimeOffset.UtcNow);
     }
 
-    private static async Task<AccountResult[]> GetJobResultsAsync(string repo, long runId)
+    internal static DashboardSnapshot CreateSnapshot(string repository, IReadOnlyList<WorkflowRun> runs,
+        AccountResult[] accounts, decimal pointsPerClaim, DateTimeOffset now)
     {
-        var detailsJson = await RunGhAsync("run", "view", runId.ToString(), "--repo", repo, "--json", "jobs");
-        using var document = JsonDocument.Parse(detailsJson);
-        if (!document.RootElement.TryGetProperty("jobs", out var jobs)) return [];
+        var today = TaipeiTime(now).Date;
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var successes = runs.Where(run => run.IsSuccessful).OrderByDescending(run => run.CreatedAt).ToArray();
+        var dates = successes.Select(run => TaipeiTime(run.CreatedAt).Date).ToHashSet();
+        var streakEnd = dates.Contains(today) ? today : today.AddDays(-1);
+        var consecutiveDays = 0;
+        while (dates.Contains(streakEnd.AddDays(-consecutiveDays))) consecutiveDays++;
+        var lastSuccess = successes.FirstOrDefault();
+        var lastFailure = runs.Where(run => run.IsFailed).OrderByDescending(run => run.CreatedAt).FirstOrDefault();
+        return new DashboardSnapshot(repository, runs.OrderByDescending(run => run.CreatedAt).FirstOrDefault(), accounts,
+            lastSuccess is null ? null : TaipeiTime(lastSuccess.CreatedAt),
+            lastFailure is null ? null : TaipeiTime(lastFailure.CreatedAt), consecutiveDays,
+            dates.Count(date => date >= monthStart && date <= today), Math.Max(0, pointsPerClaim), runs.Count);
+    }
 
+    internal static AccountResult[] ParseJobResults(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("jobs", out var jobs) || jobs.ValueKind != JsonValueKind.Array) return [];
         var results = new List<AccountResult>();
-        var index = 1;
         foreach (var job in jobs.EnumerateArray())
         {
             var name = GetString(job, "name");
-            if (!name.StartsWith("account ", StringComparison.OrdinalIgnoreCase)) continue;
-            var status = GetString(job, "status");
-            var conclusion = GetString(job, "conclusion");
-            var number = ParseAccountNumber(name, index);
-            results.Add(new AccountResult(number, name, status, conclusion));
-            index++;
+            var match = Regex.Match(name, @"^account\s+(\d+)(?:\s|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (!match.Success || !int.TryParse(match.Groups[1].Value, out var number) || number is < 1 or > AccountProfile.Count)
+                continue;
+            results.Add(new AccountResult(number, GetString(job, "status"), GetString(job, "conclusion")));
         }
         return results.OrderBy(account => account.Number).ToArray();
     }
 
-    private static async Task<string?> TryGitRemoteAsync()
+    internal static string? ParseGitHubRepo(string? value)
     {
-        try
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var repository = value.Trim().TrimEnd('/');
+        if (repository.StartsWith("git@github.com:", StringComparison.OrdinalIgnoreCase))
+            repository = repository["git@github.com:".Length..];
+        else if (Uri.TryCreate(repository, UriKind.Absolute, out var uri))
         {
-            using var process = new Process
+            if (!string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) ||
+                uri.Scheme is not ("https" or "ssh") || uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
+                (uri.Scheme == "https" && (uri.UserInfo.Length != 0 || !uri.IsDefaultPort)) ||
+                (uri.Scheme == "ssh" && uri.UserInfo is not ("" or "git"))) return null;
+            repository = uri.AbsolutePath.Trim('/');
+        }
+        if (repository.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) repository = repository[..^4];
+        if (!Regex.IsMatch(repository, @"^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9_.-]+$",
+                RegexOptions.CultureInvariant)) return null;
+        return repository.Split('/')[1] is "." or ".." ? null : repository;
+    }
+
+    private static IEnumerable<string> RepositoryDirectories()
+    {
+        var visited = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (var start in new[] { AppContext.BaseDirectory, Environment.CurrentDirectory })
+            for (var directory = new DirectoryInfo(start); directory is not null; directory = directory.Parent)
             {
-                StartInfo = new ProcessStartInfo
+                if (!visited.Add(directory.FullName)) break;
+                var git = Path.Combine(directory.FullName, ".git");
+                if (Directory.Exists(git) || File.Exists(git))
                 {
-                    FileName = "git",
-                    ArgumentList = { "remote", "get-url", "origin" },
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                },
-            };
-            if (!process.Start()) return null;
-            var output = (await process.StandardOutput.ReadToEndAsync()).Trim();
-            await process.WaitForExitAsync();
-            if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output)) return null;
-            return ParseGitHubRepo(output);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+                    yield return directory.FullName;
+                    break;
+                }
+            }
     }
 
-    internal static string? ParseGitHubRepo(string remote)
-    {
-        remote = remote.Trim();
-        const string httpsPrefix = "https://github.com/";
-        const string sshPrefix = "git@github.com:";
-        if (remote.StartsWith(httpsPrefix, StringComparison.OrdinalIgnoreCase))
-            remote = remote[httpsPrefix.Length..];
-        else if (remote.StartsWith(sshPrefix, StringComparison.OrdinalIgnoreCase))
-            remote = remote[sshPrefix.Length..];
-        else
-            return null;
-        if (remote.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-            remote = remote[..^4];
-        return remote.Trim('/');
-    }
+    private Task<string> RunGhAsync(CancellationToken cancellationToken, params string[] arguments) =>
+        _runner.RunAsync("gh", arguments, null, cancellationToken);
 
-    private static async Task<string> RunGhAsync(params string[] arguments)
-    {
-        using var process = new Process
+    internal static DateTimeOffset TaipeiTime(DateTimeOffset value) => value.ToOffset(TimeSpan.FromHours(8));
+
+    internal static string StatusLabel(string? status, string? conclusion) =>
+        (string.IsNullOrWhiteSpace(conclusion) ? status : conclusion)?.ToLowerInvariant() switch
         {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "gh",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            },
+            "success" => "成功", "failure" => "失敗", "cancelled" => "已取消", "skipped" => "已略過",
+            "timed_out" => "逾時", "in_progress" => "執行中", "queued" => "排隊中", "waiting" => "等待中",
+            "pending" => "等待中", "requested" => "已送出", "action_required" => "需要處理",
+            "startup_failure" => "啟動失敗", "neutral" => "中性結果", "completed" => "已完成",
+            { Length: > 0 } value => value, _ => "等待結果",
         };
-        foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-        if (!process.Start()) throw new InvalidOperationException("無法啟動 GitHub CLI（gh）。請先安裝：https://cli.github.com/");
 
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        var output = await outputTask;
-        var error = await errorTask;
-        if (process.ExitCode == 0) return output;
-
-        var reason = string.IsNullOrWhiteSpace(error) ? output : error;
-        reason = reason.Trim();
-        if (reason.Length > 1_000) reason = reason[..1_000] + "…";
-        throw new InvalidOperationException($"GitHub CLI 執行失敗：{reason}");
-    }
-
-    private static TimeZoneInfo GetTaipeiTimeZone()
-    {
-        try { return TimeZoneInfo.FindSystemTimeZoneById("Taipei Standard Time"); }
-        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei"); }
-    }
-
-    internal static int ParseAccountNumber(string jobName, int fallback)
-    {
-        var suffix = jobName.Trim();
-        const string prefix = "account ";
-        if (suffix.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            suffix = suffix[prefix.Length..];
-        var digits = new string(suffix.TakeWhile(char.IsDigit).ToArray());
-        return int.TryParse(digits, out var number) && number > 0 ? number : fallback;
-    }
-
-    private static string GetString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var property) && property.ValueKind != JsonValueKind.Null
-            ? property.GetString() ?? string.Empty
-            : string.Empty;
+    private static string GetString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String
+            ? property.GetString() ?? string.Empty : string.Empty;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 }
 
-internal sealed record WorkflowRun(
-    long DatabaseId,
-    DateTimeOffset CreatedAt,
-    string Conclusion,
-    string Status,
-    string Url,
-    string Event)
+internal sealed record WorkflowRun(long DatabaseId, DateTimeOffset CreatedAt, string Conclusion, string Status, string Url, string Event)
 {
     public bool IsSuccessful => string.Equals(Conclusion, "success", StringComparison.OrdinalIgnoreCase);
-    public bool IsCompleted => string.Equals(Status, "completed", StringComparison.OrdinalIgnoreCase);
-    public bool IsFailed => IsCompleted && !string.IsNullOrWhiteSpace(Conclusion) && !IsSuccessful;
+    public bool IsFailed => string.Equals(Status, "completed", StringComparison.OrdinalIgnoreCase) &&
+        Conclusion?.ToLowerInvariant() is "failure" or "timed_out" or "startup_failure" or "action_required";
 }
 
-internal sealed record AccountResult(int Number, string Alias, string Status, string Conclusion)
+internal sealed record AccountResult(int Number, string Status, string Conclusion)
 {
     public bool IsSuccessful => string.Equals(Conclusion, "success", StringComparison.OrdinalIgnoreCase);
-    public bool IsCompleted => string.Equals(Status, "completed", StringComparison.OrdinalIgnoreCase);
-    public bool IsSkipped =>
-        string.Equals(Conclusion, "skipped", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(Conclusion, "cancelled", StringComparison.OrdinalIgnoreCase);
-    public bool IsFailed => IsCompleted && !IsSuccessful && !IsSkipped;
+    public bool IsFailed => Conclusion.ToLowerInvariant() is "failure" or "timed_out" or "startup_failure" or "action_required";
+    public string StatusText => GitHubActionsService.StatusLabel(Status, Conclusion);
 }
 
-internal sealed record DashboardSnapshot(
-    string Repository,
-    WorkflowRun? LatestRun,
-    AccountResult[] Accounts,
-    AccountResult[] SuccessfulAccounts,
-    AccountResult[] FailedAccounts,
-    DateTimeOffset? LastSuccessfulActionTime,
-    DateTimeOffset? LastFailedActionTime,
-    int ConsecutiveSuccessActionDays,
-    decimal PointsPerClaim,
-    decimal MonthlyClaimedPoints);
+internal sealed record DashboardSnapshot(string Repository, WorkflowRun? LatestRun, AccountResult[] Accounts,
+    DateTimeOffset? LastSuccessfulActionTime, DateTimeOffset? LastFailedActionTime, int ConsecutiveSuccessActionDays,
+    int MonthlySuccessfulDays, decimal PointsPerClaim, int LoadedRunCount)
+{
+    public decimal EstimatedMonthlyPoints => MonthlySuccessfulDays * PointsPerClaim;
+}

@@ -1,121 +1,258 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpenMusicFlow.MainWindow"
-        Width="980" Height="760" MinWidth="820" MinHeight="620"
-        Title="OpenMusic Flow — GitHub Actions 簽到"
-        Background="#F6F8FA">
+        Width="1160" Height="840" MinWidth="960" MinHeight="680"
+        Title="OpenMusic Flow — 自動簽到控制台"
+        FontFamily="avares://Avalonia.Fonts.Inter/Assets#Inter, Microsoft JhengHei, PingFang TC, Noto Sans CJK TC"
+        WindowStartupLocation="CenterScreen" Background="#F6F7FB">
   <Window.Styles>
-    <Style Selector="Border.panel"><Setter Property="Background" Value="White" /><Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="24" /></Style>
-    <Style Selector="TextBlock.eyebrow"><Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#C2410C" /></Style>
-    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#52606D" /></Style>
-    <Style Selector="Button.primary"><Setter Property="Background" Value="#EA580C" /><Setter Property="Foreground" Value="White" /><Setter Property="Padding" Value="18,10" /></Style>
-    <Style Selector="Button.sidebarNav"><Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="#F3D5C2" /><Setter Property="HorizontalContentAlignment" Value="Left" /><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="Padding" Value="12,9" /><Setter Property="CornerRadius" Value="6" /></Style>
-    <Style Selector="Button.sidebarNav:pointerover"><Setter Property="Background" Value="#7C2D12" /><Setter Property="Foreground" Value="White" /></Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="24" />
+      <Setter Property="BorderBrush" Value="#E5E7EB" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBlock"><Setter Property="Foreground" Value="#202534" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#657084" /></Style>
+    <Style Selector="TextBlock.eyebrow">
+      <Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#B44B29" /><Setter Property="LetterSpacing" Value="1.6" />
+    </Style>
+    <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="28" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.metric"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Button"><Setter Property="CornerRadius" Value="7" /><Setter Property="Padding" Value="14,9" /></Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#C9512D" /><Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#A83E21" /><Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.nav">
+      <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="#C6BDCB" />
+      <Setter Property="Padding" Value="15,13" /><Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.nav.selected"><Setter Property="Background" Value="#48323A" /><Setter Property="Foreground" Value="#FFC8AB" /></Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#3A2B35" /><Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="6" /></Style>
+    <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="CornerRadius" Value="6" /></Style>
   </Window.Styles>
+
   <Grid ColumnDefinitions="230,*">
-    <Border Background="#431407" Padding="25">
-      <StackPanel Spacing="20">
-        <StackPanel Spacing="5">
+    <Border Background="#241D29" Padding="22,30,22,22">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <StackPanel Spacing="8">
           <TextBlock Text="OpenMusic Flow" FontSize="22" FontWeight="Bold" Foreground="White" />
-          <TextBlock Text="GitHub Actions 用網站 cookie 簽到領獎" TextWrapping="Wrap" Foreground="#F3D5C2" />
-          <TextBlock Text="每日台北時間 09:00&#10;（01:00 UTC）自動執行。" TextWrapping="Wrap" FontSize="11" Foreground="#E7B9A0" />
+          <TextBlock Text="自動簽到控制台" Foreground="#C6BDCB" />
+          <Border Background="#F0835B" Width="32" Height="3" HorizontalAlignment="Left" Margin="0,12,0,16" />
         </StackPanel>
-        <Border Background="#7C2D12" CornerRadius="8" Padding="14">
-          <StackPanel Spacing="7">
-            <TextBlock Text="最多 33 個帳號 token" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="瀏覽器 F12 → Cookies → 複製 OPENMUSIC_ACCESS_TOKEN 的值。帳號 01 貼到同名 Secret；02–33 貼到 OPENMUSIC_ACCESS_TOKEN2 … TOKEN33。沒設的編號會略過。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
-          </StackPanel>
-        </Border>
-        <StackPanel Spacing="4" Margin="0,8,0,0">
-          <TextBlock Text="主要功能" FontWeight="SemiBold" Foreground="#F3D5C2" Margin="0,0,0,4" />
-          <Button Classes="sidebarNav" Click="DashboardNavButton_OnClick">GitHub Actions 儀表板</Button>
-          <Button Classes="sidebarNav" Click="AccountNavButton_OnClick">帳號設定</Button>
+        <StackPanel Grid.Row="1" Spacing="6" Margin="0,14,0,0">
+          <TextBlock Text="工作空間" FontSize="11" Foreground="#AFA3B6" Margin="15,0,0,8" />
+          <Button x:Name="DashboardNavButton" Classes="nav selected" Click="DashboardNavButton_OnClick">01　簽到總覽</Button>
+          <Button x:Name="AccountNavButton" Classes="nav" Click="AccountNavButton_OnClick">02　帳號設定</Button>
+          <Button x:Name="LoginNavButton" Classes="nav" Click="LoginNavButton_OnClick">03　更新登入狀態</Button>
         </StackPanel>
-        <TextBlock Margin="0,20,0,0" Text="Google / Apple 帳號也可：在官網登入後複製 cookie 即可。" TextWrapping="Wrap" FontSize="12" Foreground="#E7B9A0" />
-      </StackPanel>
+        <StackPanel Grid.Row="3" Spacing="18">
+          <Border Background="#322734" CornerRadius="10" Padding="16">
+            <StackPanel Spacing="9">
+              <TextBlock Text="每日自動執行" FontWeight="SemiBold" Foreground="#FFE2D3" />
+              <TextBlock Text="05:27　13:27　21:27" FontSize="14" Foreground="White" />
+              <TextBlock Text="台北時間 · GitHub Actions&#10;程式關閉後仍會執行" FontSize="11" Foreground="#C6BDCB" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <TextBlock Text="33 個帳號槽位&#10;Avalonia · Playwright" FontSize="11" Foreground="#AFA3B6" LineHeight="20" />
+        </StackPanel>
+      </Grid>
     </Border>
 
-    <ScrollViewer Grid.Column="1"
-                  Margin="34,34,18,18"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-      <StackPanel Spacing="18" MaxWidth="680" Margin="0,0,16,24">
-        <StackPanel x:Name="DashboardView" Spacing="18">
-          <StackPanel Spacing="5">
-            <TextBlock Classes="eyebrow" Text="GITHUB ACTIONS" />
-            <TextBlock Text="執行儀表板" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="登入、簽到與領獎都在 GitHub Actions 執行。這裡只負責手動觸發與查看結果。" TextWrapping="Wrap" />
-          </StackPanel>
-
-          <Border x:Name="DashboardSection" Classes="panel">
-            <StackPanel Spacing="14">
-              <StackPanel Spacing="4">
-                <TextBlock Text="GitHub Actions 儀表板" FontSize="20" FontWeight="SemiBold" Foreground="#172B36" />
-                <TextBlock Classes="muted" Text="需已安裝並登入 GitHub CLI（gh）。儲存庫尚未 push 時會讀不到執行紀錄。" TextWrapping="Wrap" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button x:Name="TriggerClaimButton" Classes="primary" Click="TriggerClaimButton_OnClick">手動觸發每日簽到</Button>
-                <Button x:Name="RefreshDashboardButton" Click="RefreshDashboardButton_OnClick">更新執行結果</Button>
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Classes="muted" Text="每次領獎點數" VerticalAlignment="Center" />
-                <TextBox x:Name="PointsPerClaimTextBox" Width="70" Text="10" />
-                <TextBlock Classes="muted" Text="可自行調整，用於本月已領點數累計。" VerticalAlignment="Center" />
-              </StackPanel>
-              <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="18" RowSpacing="14">
-                <StackPanel Spacing="3">
-                  <TextBlock Classes="muted" Text="最近成功 job" FontSize="12" />
-                  <TextBlock x:Name="SuccessfulAccountsMetric" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#EA580C" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="3">
-                  <TextBlock Classes="muted" Text="連續成功 Action 天數" FontSize="12" />
-                  <TextBlock x:Name="ConsecutiveSuccessActionDaysMetric" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#EA580C" />
-                </StackPanel>
-                <StackPanel Grid.Column="2" Spacing="3">
-                  <TextBlock Classes="muted" Text="本月已領點數" FontSize="12" />
-                  <TextBlock x:Name="MonthlyPointsMetric" Text="—" FontSize="22" FontWeight="SemiBold" Foreground="#EA580C" />
-                </StackPanel>
-                <StackPanel Grid.Row="1" Spacing="3">
-                  <TextBlock Classes="muted" Text="上次成功 Action 時間" FontSize="12" />
-                  <TextBlock x:Name="LastSuccessfulActionMetric" Text="—" FontSize="16" FontWeight="SemiBold" Foreground="#EA580C" />
-                </StackPanel>
-                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3">
-                  <TextBlock Classes="muted" Text="上次失敗 Action 時間" FontSize="12" />
-                  <TextBlock x:Name="LastFailedActionMetric" Text="—" FontSize="16" FontWeight="SemiBold" Foreground="#B42318" />
-                </StackPanel>
-              </Grid>
-              <TextBlock x:Name="DashboardStatusText" Classes="muted" Text="尚未讀取 GitHub Actions 結果。" TextWrapping="Wrap" />
-              <ScrollViewer MaxHeight="230" VerticalScrollBarVisibility="Auto">
-                <StackPanel x:Name="ActionAccountResultsPanel" Spacing="6" />
-              </ScrollViewer>
-            </StackPanel>
-          </Border>
+    <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+      <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="28,20">
+        <StackPanel Spacing="9">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="GitHub 儲存庫" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="1" Text="本機設定" Classes="muted" FontSize="11" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+            <TextBox x:Name="RepositoryTextBox" Watermark="owner/repository 或 GitHub 網址"
+                     TextChanged="RepositoryTextBox_OnTextChanged" AutomationProperties.Name="GitHub 儲存庫" />
+            <Button Grid.Column="1" x:Name="DetectRepositoryButton" Click="DetectRepositoryButton_OnClick">自動偵測</Button>
+            <Button Grid.Column="2" x:Name="CheckConnectionButton" Click="CheckConnectionButton_OnClick">檢查連線</Button>
+            <Button Grid.Column="3" x:Name="SaveSettingsButton" Click="SaveSettingsButton_OnClick">儲存設定</Button>
+          </Grid>
         </StackPanel>
+      </Border>
 
-        <StackPanel x:Name="AccountView" Spacing="18" IsVisible="False">
-          <StackPanel Spacing="5">
-            <TextBlock Classes="eyebrow" Text="ACCOUNT SETTINGS" />
-            <TextBlock Text="帳號設定" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="名稱與 Email 只當標籤存在這台電腦。真正身分是瀏覽器 cookie，貼到 GitHub Secrets。" TextWrapping="Wrap" />
-          </StackPanel>
-          <Border x:Name="AccountSection" Classes="panel">
-            <StackPanel Spacing="12">
-              <TextBlock Text="帳號別名與 Email 標籤" FontWeight="SemiBold" FontSize="16" />
-              <TextBlock Classes="muted" Text="每個帳號一個 GitHub Secret。帳號 01：OPENMUSIC_ACCESS_TOKEN；帳號 02：OPENMUSIC_ACCESS_TOKEN2；…帳號 33：OPENMUSIC_ACCESS_TOKEN33。F12 → Application → Cookies → 複製這個 cookie 的 Value。" FontSize="12" TextWrapping="Wrap" />
-              <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
-                <StackPanel x:Name="AliasListPanel" Spacing="6" />
-              </ScrollViewer>
-              <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
-                <Button Click="CopyTokenSecretButton_OnClick">複製全部 Secret 名稱</Button>
-              </StackPanel>
-              <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
-                <TextBlock x:Name="AccountStatusText" Text="準備就緒。帳號 01 用 OPENMUSIC_ACCESS_TOKEN，其餘用 OPENMUSIC_ACCESS_TOKEN2 … OPENMUSIC_ACCESS_TOKEN33。" Foreground="#29434A" TextWrapping="Wrap" />
+      <ScrollViewer x:Name="ContentScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="28,26,28,28" Spacing="20" MaxWidth="1100">
+
+          <StackPanel x:Name="DashboardView" Spacing="20">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="eyebrow" Text="GITHUB ACTIONS" />
+              <TextBlock Classes="title" Text="簽到總覽" />
+              <TextBlock Classes="muted" Text="查看簽到執行結果，掌握每個帳號的狀態。" TextWrapping="Wrap" />
+            </StackPanel>
+            <WrapPanel>
+              <Button x:Name="TriggerClaimButton" Classes="primary" Click="TriggerClaimButton_OnClick" Margin="0,0,8,0">立即執行簽到</Button>
+              <Button x:Name="RefreshDashboardButton" Click="RefreshDashboardButton_OnClick" Margin="0,0,8,0">更新執行結果</Button>
+              <Button x:Name="OpenActionsButton" Click="OpenActionsButton_OnClick">開啟 GitHub Actions</Button>
+            </WrapPanel>
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
+              <Border Classes="panel" Padding="18">
+                <StackPanel Spacing="10">
+                  <TextBlock Classes="muted" Text="最近成功帳號" FontSize="12" />
+                  <TextBlock x:Name="SuccessfulAccountsMetric" Classes="metric" Text="—" Foreground="#187568" />
+                  <TextBlock x:Name="AccountResultSummaryText" Text="等待讀取執行紀錄" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
               </Border>
+              <Border Grid.Column="1" Classes="panel" Padding="18">
+                <StackPanel Spacing="10">
+                  <TextBlock Classes="muted" Text="連續成功天數" FontSize="12" />
+                  <TextBlock x:Name="ConsecutiveSuccessActionDaysMetric" Classes="metric" Text="—" />
+                  <TextBlock Text="依台北日期計算" Classes="muted" FontSize="11" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="2" Classes="panel" Padding="18">
+                <StackPanel Spacing="10">
+                  <TextBlock Classes="muted" Text="本月成功日估算點數" FontSize="12" TextWrapping="Wrap" />
+                  <TextBlock x:Name="MonthlyPointsMetric" Classes="metric" Text="—" Foreground="#C9512D" />
+                  <TextBlock Text="成功日 × 設定點數" Classes="muted" FontSize="11" />
+                </StackPanel>
+              </Border>
+            </Grid>
+            <Border Classes="panel">
+              <StackPanel Spacing="16">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="最近一次執行" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock x:Name="LatestRunStateText" Grid.Column="1" Text="尚未讀取" Classes="muted" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock x:Name="DashboardStatusText" Classes="muted"
+                           Text="先設定 GitHub 儲存庫，再按「更新執行結果」。GitHub CLI 需已執行 gh auth login。"
+                           TextWrapping="Wrap" />
+                <Border Height="1" Background="#EDF0F4" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="20">
+                  <StackPanel Spacing="5">
+                    <TextBlock Classes="muted" Text="上次成功 · 台北時間" FontSize="12" />
+                    <TextBlock x:Name="LastSuccessfulActionMetric" Text="—" FontWeight="SemiBold" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="5">
+                    <TextBlock Classes="muted" Text="上次失敗 · 台北時間" FontSize="12" />
+                    <TextBlock x:Name="LastFailedActionMetric" Text="—" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Grid>
+                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                  <StackPanel x:Name="ActionAccountResultsPanel" Spacing="6" />
+                </ScrollViewer>
+                <TextBlock x:Name="HistoryNoteText" Classes="muted" FontSize="11" TextWrapping="Wrap"
+                           Text="統計最多使用最近 100 次執行。估算點數不代表實際入帳或帳戶餘額。" />
+              </StackPanel>
+            </Border>
+            <Grid ColumnDefinitions="Auto,110,*" ColumnSpacing="12">
+              <TextBlock Text="每成功日估算點數" Classes="muted" VerticalAlignment="Center" />
+              <NumericUpDown x:Name="PointsPerClaimInput" Grid.Column="1" Value="10" Minimum="0" Maximum="100000"
+                             FormatString="0.##" ValueChanged="PointsPerClaimInput_OnValueChanged" />
+              <TextBlock Grid.Column="2" Classes="muted" FontSize="11" Text="調整後按上方「儲存設定」。" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel x:Name="AccountView" Spacing="20" IsVisible="False">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="eyebrow" Text="ACCOUNT SETTINGS" />
+              <TextBlock Classes="title" Text="帳號設定" />
+              <TextBlock Classes="muted" Text="為 33 個帳號加上別名與 Email，登入及查看結果時更容易辨識。" TextWrapping="Wrap" />
             </StackPanel>
-          </Border>
+            <Border Classes="panel">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="帳號別名與 Email" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock x:Name="AccountCountText" Grid.Column="1" Classes="muted" VerticalAlignment="Center" />
+                </Grid>
+                <TextBox x:Name="AccountSearchTextBox" Watermark="搜尋編號、別名或 Email" TextChanged="AccountSearchTextBox_OnTextChanged" />
+                <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel x:Name="AliasListPanel" Spacing="10" />
+                </ScrollViewer>
+                <TextBlock x:Name="NoAccountsMatchText" Text="沒有符合的帳號。" Classes="muted" IsVisible="False" />
+                <WrapPanel>
+                  <Button x:Name="SaveAliasesButton" Classes="primary" Click="SaveAliasesButton_OnClick" Margin="0,0,8,0">儲存帳號設定</Button>
+                  <Button Click="CopyAllSecretsButton_OnClick">複製全部 Secret 名稱</Button>
+                </WrapPanel>
+                <TextBlock x:Name="AccountStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap"
+                           Text="本機只儲存標籤。帳號 01 使用 OPENMUSIC_ACCESS_TOKEN；02–33 依序加上編號。" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <StackPanel x:Name="LoginView" Spacing="20" IsVisible="False">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="eyebrow" Text="BROWSER SIGN IN" />
+              <TextBlock Classes="title" Text="更新登入狀態" />
+              <TextBlock Classes="muted" Text="在瀏覽器登入 OpenMusic，取得有效 Token 並同步到 GitHub。" TextWrapping="Wrap" />
+            </StackPanel>
+            <Border Classes="panel">
+              <StackPanel Spacing="16">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                  <StackPanel Spacing="7">
+                    <TextBlock Text="帳號槽位" FontWeight="SemiBold" />
+                    <ComboBox x:Name="AccountComboBox" SelectionChanged="AccountComboBox_OnSelectionChanged" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="7">
+                    <TextBlock Text="登入瀏覽器" FontWeight="SemiBold" />
+                    <ComboBox x:Name="BrowserComboBox" SelectionChanged="BrowserComboBox_OnSelectionChanged" />
+                  </StackPanel>
+                </Grid>
+                <Border Background="#FFF3EA" CornerRadius="8" Padding="15">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="寫入目的地" Foreground="#995134" FontSize="11" FontWeight="SemiBold" />
+                    <TextBlock x:Name="TargetRepositoryText" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="SecretNameText" FontSize="13" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <StackPanel Spacing="8">
+                  <TextBlock Text="1　開啟獨立瀏覽器，登入這個槽位對應的 OpenMusic 帳號。" TextWrapping="Wrap" />
+                  <TextBlock Text="2　工具偵測 Cookie 並驗證帳號；成功後自動關閉登入視窗。" TextWrapping="Wrap" />
+                  <TextBlock Text="3　將 Token 寫入上方 GitHub Secret，供排程執行簽到。" TextWrapping="Wrap" />
+                </StackPanel>
+                <CheckBox x:Name="AutoUploadCheckBox" IsChecked="True">
+                  <TextBlock Text="登入成功後自動寫入 GitHub Secret（更新同名項目）" TextWrapping="Wrap" />
+                </CheckBox>
+                <WrapPanel>
+                  <Button x:Name="StartLoginButton" Classes="primary" Click="StartLoginButton_OnClick" Margin="0,0,8,8">開始登入並擷取</Button>
+                  <Button x:Name="InstallBrowserButton" Click="InstallBrowserButton_OnClick" Margin="0,0,8,8">安裝瀏覽器</Button>
+                  <Button Click="OpenMusicButton_OnClick" Margin="0,0,0,8">開啟 OpenMusic</Button>
+                </WrapPanel>
+                <TextBlock Classes="muted" FontSize="11" TextWrapping="Wrap"
+                           Text="Chrome／Edge 使用已安裝版本；Chromium／Firefox 可按「安裝瀏覽器」下載。Google、Apple 與驗證碼由你在官網完成。" />
+              </StackPanel>
+            </Border>
+            <Border Classes="panel">
+              <StackPanel Spacing="13">
+                <TextBlock Text="擷取與同步結果" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="CapturedAccountText" Text="尚未取得登入狀態" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="LoginStatusText" Classes="muted" TextWrapping="Wrap"
+                           Text="Token 僅暫存在記憶體，不會寫入本機設定或操作紀錄。切換帳號後會清除。" />
+                <WrapPanel>
+                  <Button x:Name="UploadSecretButton" Classes="primary" IsEnabled="False" Click="UploadSecretButton_OnClick" Margin="0,0,8,8">寫入 GitHub Secret</Button>
+                  <Button x:Name="CopyTokenButton" IsEnabled="False" Click="CopyTokenButton_OnClick" Margin="0,0,8,8">複製 Token</Button>
+                  <Button Click="CopySecretButton_OnClick" Margin="0,0,8,8">複製 Secret 名稱</Button>
+                  <Button x:Name="OpenSecretsButton" Click="OpenSecretsButton_OnClick" Margin="0,0,0,8">開啟 Secrets</Button>
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
         </StackPanel>
-      </StackPanel>
-    </ScrollViewer>
+      </ScrollViewer>
+
+      <Border Grid.Row="2" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="28,12">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+          <TextBlock x:Name="OperationStatusText" Text="準備就緒。先設定儲存庫，再前往「更新登入狀態」。"
+                     Classes="muted" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" MaxHeight="64" />
+          <Button Grid.Column="1" x:Name="CancelOperationButton" IsVisible="False" Click="CancelOperationButton_OnClick" Margin="12,0,0,0">取消</Button>
+          <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" x:Name="BusyIndicator" IsVisible="False" IsIndeterminate="True" Height="3" Margin="0,8,0,0" />
+        </Grid>
+      </Border>
+    </Grid>
   </Grid>
 </Window>

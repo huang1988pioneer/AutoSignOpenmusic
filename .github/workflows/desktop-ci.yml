@@ -1,0 +1,27 @@
+name: Avalonia desktop checks
+
+on:
+  push:
+    paths: ['OpenMusicFlow/**', 'OpenMusicFlow.Tests/**', '.github/workflows/desktop-ci.yml']
+  pull_request:
+    paths: ['OpenMusicFlow/**', 'OpenMusicFlow.Tests/**', '.github/workflows/desktop-ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build and test without real accounts
+        run: dotnet test OpenMusicFlow.Tests/OpenMusicFlow.Tests.csproj -c Release --filter "Category!=BrowserSmoke"

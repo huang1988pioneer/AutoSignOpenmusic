@@ -3,6 +3,10 @@
              x:Class="OpenMusicFlow.App"
              RequestedThemeVariant="Light">
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#C9512D" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
   </Application.Styles>
 </Application>

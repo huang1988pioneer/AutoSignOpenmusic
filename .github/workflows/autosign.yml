@@ -2,8 +2,9 @@ name: OpenMusic daily autosign
 
 on:
   schedule:
-    # 01:00 UTC = 09:00 Taipei/HK. Adjust to your check-in reset time.
-    - cron: "0 1 * * *"
+    # Taipei 05:27, 13:27, 21:27. Minute 27 avoids the five reference projects.
+    # Verified 2026-09-04: other projects use 0, 5, 9, 18, 19, 30, 35, 50.
+    - cron: "27 21,5,13 * * *"
   workflow_dispatch:
 
 jobs:
@@ -80,7 +81,7 @@ jobs:
           PY
 
   autosign:
-    name: account ${{ matrix.account }}
+    name: ${{ matrix.account == 1 && 'account 1 - goldshoot0720' || matrix.account == 3 && 'account 3 - huang1988pioneer' || format('account {0}', matrix.account) }}
     needs: [test, select-accounts]
     if: needs.select-accounts.outputs.accounts != '[]'
     runs-on: ubuntu-latest
