@@ -17,13 +17,13 @@
       <StackPanel Spacing="20">
         <StackPanel Spacing="5">
           <TextBlock Text="OpenMusic Flow" FontSize="22" FontWeight="Bold" Foreground="White" />
-          <TextBlock Text="只透過 GitHub Actions 登入、簽到與領獎" TextWrapping="Wrap" Foreground="#F3D5C2" />
+          <TextBlock Text="GitHub Actions 用網站 cookie 簽到領獎" TextWrapping="Wrap" Foreground="#F3D5C2" />
           <TextBlock Text="每日台北時間 09:00&#10;（01:00 UTC）自動執行。" TextWrapping="Wrap" FontSize="11" Foreground="#E7B9A0" />
         </StackPanel>
         <Border Background="#7C2D12" CornerRadius="8" Padding="14">
           <StackPanel Spacing="7">
-            <TextBlock Text="本機不登入、不存密碼" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="帳密只放在 GitHub Secrets。桌面工具只觸發 workflow 與查看結果。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
+            <TextBlock Text="用 session cookie，不是 Email" FontWeight="SemiBold" Foreground="White" />
+            <TextBlock Text="從瀏覽器複製 OPENMUSIC_ACCESS_TOKEN 與 OPENMUSIC_SESSION_ID，貼到 GitHub Secrets。本機不登入。" TextWrapping="Wrap" Foreground="#F8E4D8" FontSize="12" />
           </StackPanel>
         </Border>
         <StackPanel Spacing="4" Margin="0,8,0,0">
@@ -31,7 +31,7 @@
           <Button Classes="sidebarNav" Click="DashboardNavButton_OnClick">GitHub Actions 儀表板</Button>
           <Button Classes="sidebarNav" Click="AccountNavButton_OnClick">帳號設定</Button>
         </StackPanel>
-        <TextBlock Margin="0,20,0,0" Text="Google / Apple 登入無法用 API 自動化，請使用 Email + 密碼帳號。" TextWrapping="Wrap" FontSize="12" Foreground="#E7B9A0" />
+        <TextBlock Margin="0,20,0,0" Text="Google / Apple 帳號也可：在官網登入後複製 cookie 即可。" TextWrapping="Wrap" FontSize="12" Foreground="#E7B9A0" />
       </StackPanel>
     </Border>
 
@@ -96,22 +96,22 @@
           <StackPanel Spacing="5">
             <TextBlock Classes="eyebrow" Text="ACCOUNT SETTINGS" />
             <TextBlock Text="帳號設定" FontSize="28" FontWeight="SemiBold" Foreground="#172B36" />
-            <TextBlock Classes="muted" Text="名稱與 Email 只存在這台電腦，方便對照 GitHub Secrets。登入、簽到與領獎不會在本機執行。" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" Text="名稱與 Email 只當標籤存在這台電腦。真正身分是瀏覽器 cookie，貼到 GitHub Secrets。" TextWrapping="Wrap" />
           </StackPanel>
           <Border x:Name="AccountSection" Classes="panel">
             <StackPanel Spacing="12">
-              <TextBlock Text="帳號別名與 Email" FontWeight="SemiBold" FontSize="16" />
-              <TextBlock Classes="muted" Text="帳號 01 對應 GitHub Secrets：OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD。密碼只貼到 GitHub，不要寫進程式碼。" FontSize="12" TextWrapping="Wrap" />
+              <TextBlock Text="帳號別名與 Email 標籤" FontWeight="SemiBold" FontSize="16" />
+              <TextBlock Classes="muted" Text="帳號 01 對應 GitHub Secrets：OPENMUSIC_COOKIES（或 OPENMUSIC_ACCESS_TOKEN + OPENMUSIC_SESSION_ID）。在瀏覽器 F12 → Application → Cookies 複製後貼上。" FontSize="12" TextWrapping="Wrap" />
               <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="AliasListPanel" Spacing="6" />
               </ScrollViewer>
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button HorizontalAlignment="Left" Click="SaveAliasesButton_OnClick">儲存帳號設定</Button>
-                <Button Click="CopyEmailSecretButton_OnClick">複製 Email Secret 名稱</Button>
-                <Button Click="CopyPasswordSecretButton_OnClick">複製 Password Secret 名稱</Button>
+                <Button Click="CopyCookiesSecretButton_OnClick">複製 Cookies Secret 名稱</Button>
+                <Button Click="CopyTokenSecretButton_OnClick">複製 Access Token Secret 名稱</Button>
               </StackPanel>
               <Border Background="#EAF1F3" CornerRadius="8" Padding="14">
-                <TextBlock x:Name="AccountStatusText" Text="準備就緒。請把帳密貼到 GitHub Secrets，由 Actions 登入簽到與領獎。" Foreground="#29434A" TextWrapping="Wrap" />
+                <TextBlock x:Name="AccountStatusText" Text="準備就緒。請把官網 cookie 貼到 GitHub Secrets，由 Actions 簽到與領獎。" Foreground="#29434A" TextWrapping="Wrap" />
               </Border>
             </StackPanel>
           </Border>

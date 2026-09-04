@@ -1,44 +1,70 @@
 # AutoSignOpenmusic
 
 每天自動登入 [OpenMusic AI](https://www.openmusic.ai/) 並領取簽到獎賞點數。
-登入、簽到與領獎**只在 GitHub Actions 執行**（官方 HTTP API，非瀏覽器模擬），本機不登入、不存密碼。
+簽到與領獎**只在 GitHub Actions 執行**（官方 HTTP API，非瀏覽器模擬）。
+本機不登入、不存密碼；GitHub Secrets 放的是**網站 session cookie**，不是 Email。
+
+官網必要 cookie（`.openmusic.ai`）：
+
+- `OPENMUSIC_ACCESS_TOKEN` — 登入後的 access token
+- `OPENMUSIC_SESSION_ID` — session id
 
 ## 原理（已逆向驗證）
 
 | 步驟 | 方法與路徑 | 狀態 |
 |---|---|---|
-| 登入 | `POST /common-api/v1/login`，body `{email, password: md5_hex, utm: null, source: null}` | ✅ Playwright 真站驗證（未註冊帳號回 `400004`） |
+| 身分 | 帶 `OPENMUSIC_ACCESS_TOKEN` / `OPENMUSIC_SESSION_ID` cookie（瀏覽器登入後複製） | ✅ 與官網相同 session |
 | 讀點數 | `GET /common-api/v1/user`（`user_credit_balances`） | ✅ |
 | 簽到狀態 | `GET /api/activity/check-in/status?entry=refresh` | ✅（未登入回 `activity_available: true`, `login_required: true`） |
 | 領獎 | `POST /api/activity/check-in/claim`，body `{activity_id}` | ✅ 來自懶載入 chunk `MobileAccountActions` / `CheckInRewardsDialog` |
 
-登入只支援 **Email + 密碼**帳號。Google / Apple 走 OAuth，前端打的是
-`auth-google/login` / `auth-apple/login`，不適合 API 自動化。
+Google / Apple 帳號也可以：在瀏覽器登入後複製 cookie 即可，不必 Email + 密碼。
 
 領獎回應看 `data.rewardGranted`（剛領到）或 `data.alreadyCheckedIn`（今天已領）。
 狀態裡 `today_checked_in: true` 時腳本會直接當成功、不再 POST。
 
 ## 快速開始
 
-1. 帳密只放在 GitHub Secrets，不要寫進程式碼、也不要在本機跑登入。
-2. 到 repo **Settings → Secrets and variables → Actions** 新增：
-   - `OPENMUSIC_EMAIL`：登入 email
-   - `OPENMUSIC_PASSWORD`：登入密碼（只存 GitHub Secrets；
-     Actions 送出前會先做前端同款 MD5）
-   - `CHECKIN_ENDPOINT`（選填）：覆寫領獎路徑，預設已是 `POST api/activity/check-in/claim`
-   - `CHECKIN_BODY_JSON`（選填）：覆寫 body；預設會帶 status 回的 `activity_id`
-   - `ALREADY_CLAIMED_CODES`（選填）：視為「已領過」的 code
+1. 用瀏覽器登入 [openmusic.ai](https://www.openmusic.ai/)，打開開發者工具複製 cookie。
+2. 到 repo **Settings → Secrets and variables → Actions** 新增（擇一即可）：
+
+   | Secret | 內容 |
+   |---|---|
+   | `OPENMUSIC_COOKIES`（建議） | 完整 Cookie header，例如 `OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...` |
+   | `OPENMUSIC_ACCESS_TOKEN` | 只貼 token 值；可再加 `OPENMUSIC_SESSION_ID` |
+   | `OPENMUSIC_EMAIL` + `OPENMUSIC_PASSWORD` | 選填。僅 Email 帳號的後備登入，Google / Apple 不能用 |
+
+   選填覆寫：
+
+   - `CHECKIN_ENDPOINT`：覆寫領獎路徑，預設已是 `POST api/activity/check-in/claim`
+   - `CHECKIN_BODY_JSON`：覆寫 body；預設會帶 status 回的 `activity_id`
+   - `ALREADY_CLAIMED_CODES`：視為「已領過」的 code
+
 3. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
 排程預設每天 `01:00 UTC`（台北 09:00），改 `.github/workflows/autosign.yml` 的 cron 即可。
-workflow 會依序：登入 → 讀簽到狀態 → 領獎。
+workflow 會用 session cookie 讀簽到狀態再領獎。Cookie 過期時 Actions 會失敗，重新複製貼上 Secret 即可。
+
+### 怎麼複製 Cookie
+
+1. Chrome / Edge：登入官網後按 `F12` → **Application**（應用程式）→ **Cookies** → `https://www.openmusic.ai`。
+2. 複製 `OPENMUSIC_ACCESS_TOKEN` 與 `OPENMUSIC_SESSION_ID` 的值。
+3. 組成一行貼到 `OPENMUSIC_COOKIES`：
+
+   ```
+   OPENMUSIC_ACCESS_TOKEN=這裡貼token; OPENMUSIC_SESSION_ID=這裡貼session
+   ```
+
+也可在 **Network** 裡點任一 `www.openmusic.ai` 請求，從 Request Headers 複製整段 `Cookie:`。
+
+請勿把 cookie 提交到 Git。
 
 ## 桌面工具（Windows、macOS、Linux）
 
 參考 [AutoSignOiiOii](https://github.com/huang1988pioneer/AutoSignOiiOii) 的 Avalonia 桌面工具，專案內含 **OpenMusic Flow**：
 
 - GitHub Actions 儀表板：手動觸發每日簽到、看最近成功／失敗與連續天數
-- 帳號設定：本機只存別名與 Email，不存密碼、也不在本機登入或領獎
+- 帳號設定：本機只存別名與 Email 標籤；複製 Secret 名稱，把瀏覽器 cookie 貼到 GitHub
 
 ```bash
 dotnet run --project OpenMusicFlow/OpenMusicFlow.csproj
@@ -59,11 +85,10 @@ python -m unittest test_autosign
 ## Playwright（GitHub Actions 驗證 API 形狀）
 
 工作流 `Playwright login flow` 在 GitHub Actions 跑官方前端，用來確認登入 MD5 與簽到 status 路由。
-若 repo secrets 裡有帳密，live claim 測試也會一併在 Actions 執行。
-
-本機不需要、也不建議帶帳密跑 Playwright。
+本機不需要帶帳密或 cookie 跑 Playwright。
 
 ## 風險
 
 - 自動簽到可能違反站台 ToS，有鎖號風險，建議先用小號、確認點數有入帳再長期跑。
 - 站台改版（換路徑、加驗證碼/Cloudflare）會讓腳本失效，Actions 紅了就代表要跟著改。
+- Session cookie 會過期；過期後更新 GitHub Secrets 即可，不必改程式。

@@ -19,6 +19,9 @@ jobs:
         run: python -m unittest test_autosign
       - name: Daily sign-in + claim
         env:
+          OPENMUSIC_COOKIES: ${{ secrets.OPENMUSIC_COOKIES }}
+          OPENMUSIC_ACCESS_TOKEN: ${{ secrets.OPENMUSIC_ACCESS_TOKEN }}
+          OPENMUSIC_SESSION_ID: ${{ secrets.OPENMUSIC_SESSION_ID }}
           OPENMUSIC_EMAIL: ${{ secrets.OPENMUSIC_EMAIL }}
           OPENMUSIC_PASSWORD: ${{ secrets.OPENMUSIC_PASSWORD }}
           CHECKIN_ENDPOINT: ${{ secrets.CHECKIN_ENDPOINT }}

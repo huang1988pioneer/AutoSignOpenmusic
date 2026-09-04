@@ -2,9 +2,15 @@
 
 Pure stdlib (urllib). No third-party dependencies.
 
+Auth (GitHub Secrets; pick one):
+  * OPENMUSIC_COOKIES          Cookie header, e.g.
+    OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...
+  * OPENMUSIC_ACCESS_TOKEN     (+ optional OPENMUSIC_SESSION_ID)
+  * OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5)  fallback login POST
+
 Flow (reverse-engineered from the production web client, chunk 13471):
-  1. POST {BASE}/common-api/v1/login  {email, password: md5_hex(password)}
-     -> session cookies (incl. OPENMUSIC_ACCESS_TOKEN), envelope {code, message, data}
+  1. Session cookies on .openmusic.ai: OPENMUSIC_ACCESS_TOKEN, OPENMUSIC_SESSION_ID
+     (or POST {BASE}/common-api/v1/login {email, password: md5_hex} to mint them)
   2. GET  {BASE}/common-api/v1/user             -> profile + credit balances
   3. GET  {BASE}/api/activity/check-in/status?entry=refresh
      -> activity_id, today_checked_in, reward_rules
@@ -27,6 +33,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 SUCCESS_CODE = 200
@@ -62,6 +69,65 @@ def md5_hex(password: str) -> str:
     return hashlib.md5(password.encode("utf-8")).hexdigest()
 
 
+def parse_cookie_header(raw):
+    """Parse a Cookie header, JSON object, or Playwright storage-state JSON."""
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    if raw[0] in "{[":
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            items = data.get("cookies") if isinstance(data.get("cookies"), list) else None
+            if items is not None:
+                return {
+                    str(item.get("name")): str(item.get("value", ""))
+                    for item in items
+                    if isinstance(item, dict) and item.get("name")
+                }
+            return {str(key): str(value) for key, value in data.items() if value is not None}
+        if isinstance(data, list):
+            return {
+                str(item.get("name")): str(item.get("value", ""))
+                for item in data
+                if isinstance(item, dict) and item.get("name")
+            }
+    cookies = {}
+    skip_prefixes = (
+        "path=", "domain=", "expires=", "max-age=", "secure", "httponly", "samesite=",
+    )
+    for part in raw.split(";"):
+        part = part.strip()
+        if not part or part.lower().startswith(skip_prefixes):
+            continue
+        if "=" not in part:
+            continue
+        name, value = part.split("=", 1)
+        name, value = name.strip(), value.strip().strip('"')
+        if name:
+            cookies[name] = value
+    return cookies
+
+
+def session_cookies_from_env(env):
+    cookies = {}
+    raw = env.get("OPENMUSIC_COOKIES", "").strip()
+    if raw:
+        cookies.update(parse_cookie_header(raw))
+    token = env.get("OPENMUSIC_ACCESS_TOKEN", "").strip()
+    if token:
+        if "OPENMUSIC_ACCESS_TOKEN=" in token or "OPENMUSIC_SESSION_ID=" in token:
+            cookies.update(parse_cookie_header(token))
+        else:
+            cookies["OPENMUSIC_ACCESS_TOKEN"] = token
+    session_id = env.get("OPENMUSIC_SESSION_ID", "").strip()
+    if session_id:
+        cookies["OPENMUSIC_SESSION_ID"] = session_id
+    return {name: value for name, value in cookies.items() if name and value}
+
+
 class OpenMusicClient:
     def __init__(self, base_url="https://www.openmusic.ai", timeout=30):
         self.base_url = base_url.rstrip("/")
@@ -70,6 +136,36 @@ class OpenMusicClient:
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)
         )
+        self._cookie_header = ""
+
+    def apply_cookies(self, cookies):
+        """Reuse a browser session instead of posting email/password."""
+        cookies = {str(name): str(value) for name, value in (cookies or {}).items() if name and value}
+        self._cookie_header = "; ".join(f"{name}={value}" for name, value in cookies.items())
+        host = urllib.parse.urlparse(self.base_url).hostname or "www.openmusic.ai"
+        domain = host[4:] if host.startswith("www.") else host
+        if domain and not domain.startswith("."):
+            domain = "." + domain
+        for name, value in cookies.items():
+            self.jar.set_cookie(http.cookiejar.Cookie(
+                version=0,
+                name=name,
+                value=value,
+                port=None,
+                port_specified=False,
+                domain=domain,
+                domain_specified=True,
+                domain_initial_dot=True,
+                path="/",
+                path_specified=True,
+                secure=True,
+                expires=None,
+                discard=True,
+                comment=None,
+                comment_url=None,
+                rest={"HttpOnly": None},
+                rfc2109=False,
+            ))
 
     def _request(self, method, path, body=None):
         url = self.base_url + "/" + path.lstrip("/")
@@ -80,6 +176,8 @@ class OpenMusicClient:
             "Origin": self.base_url,
             "Referer": self.base_url + "/",
         }
+        if self._cookie_header:
+            headers["Cookie"] = self._cookie_header
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -182,12 +280,12 @@ def summarize_user(data):
             f"credits={total} buckets={len(balances)}")
 
 
-def _write_summary(env, email, already, before):
+def _write_summary(env, account, already, before):
     summary = env.get("GITHUB_STEP_SUMMARY")
     if not summary:
         return
     with open(summary, "a", encoding="utf-8") as f:
-        f.write(f"### OpenMusic autosign\n- login: {email} OK\n"
+        f.write(f"### OpenMusic autosign\n- session: {account} OK\n"
                 f"- claim: {'already claimed' if already else 'claimed'}\n"
                 f"- before: {before}\n")
 
@@ -197,21 +295,33 @@ def run(args, env=os.environ):
     password = env.get("OPENMUSIC_PASSWORD", "")
     password_md5 = env.get("OPENMUSIC_PASSWORD_MD5", "").strip()
     base = env.get("OPENMUSIC_BASE_URL", "https://www.openmusic.ai").strip()
-    if not email or (not password and not password_md5):
-        print("missing OPENMUSIC_EMAIL and OPENMUSIC_PASSWORD(_MD5)", file=sys.stderr)
+    cookies = session_cookies_from_env(env)
+    if not cookies and (not email or (not password and not password_md5)):
+        print(
+            "missing session cookies: set OPENMUSIC_COOKIES "
+            "(OPENMUSIC_ACCESS_TOKEN; OPENMUSIC_SESSION_ID) "
+            "or OPENMUSIC_ACCESS_TOKEN. "
+            "Email/password login is optional fallback only.",
+            file=sys.stderr,
+        )
         return 1
 
     client = OpenMusicClient(base_url=base)
-    try:
-        client.login(email, password_md5 or password,
-                     password_is_md5=bool(password_md5))
-    except ApiError as e:
-        name = ERROR_NAMES.get(e.code, "")
-        print(f"LOGIN FAILED code={e.code} {name} message={e.message!r}")
-        if e.code == 400010:
-            print("hint: rate limited, retry later (GitHub Actions `retry` handles this)")
-        return 2
-    print(f"LOGIN OK {email}")
+    account = email or "cookie-session"
+    if cookies:
+        client.apply_cookies(cookies)
+        print("SESSION COOKIES " + ",".join(sorted(cookies)))
+    else:
+        try:
+            client.login(email, password_md5 or password,
+                         password_is_md5=bool(password_md5))
+        except ApiError as e:
+            name = ERROR_NAMES.get(e.code, "")
+            print(f"LOGIN FAILED code={e.code} {name} message={e.message!r}")
+            if e.code == 400010:
+                print("hint: rate limited, retry later (GitHub Actions `retry` handles this)")
+            return 2
+        print(f"LOGIN OK {email}")
 
     # Read-only state first so --probe / logs always show balances.
     try:
@@ -219,7 +329,19 @@ def run(args, env=os.environ):
         print("USER", summarize_user(user))
     except ApiError as e:
         print(f"USER FETCH FAILED {e}")
+        if cookies:
+            print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
+                  "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+            return 2
         return 1
+    user_email = (user.get("user") or {}).get("email") if isinstance(user, dict) else None
+    if user_email:
+        account = user_email
+    elif cookies and not (isinstance(user, dict) and (user.get("user") or {}).get("id")):
+        print("SESSION EXPIRED: /common-api/v1/user has no logged-in profile")
+        print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
+              "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+        return 2
     try:
         activity = client.get_activities_current()
         print("ACTIVITY", json.dumps(activity)[:1000])
@@ -239,6 +361,12 @@ def run(args, env=os.environ):
     except ApiError as e:
         print(f"CREDIT_LOG FAILED {e}")
 
+    if isinstance(checkin, dict) and checkin.get("login_required"):
+        print("SESSION EXPIRED login_required=true")
+        print("hint: cookie/session expired — update OPENMUSIC_COOKIES "
+              "or OPENMUSIC_ACCESS_TOKEN in GitHub Secrets")
+        return 2
+
     if args.probe:
         print("PROBE MODE: state dumped, no claim attempted")
         return 0
@@ -248,7 +376,7 @@ def run(args, env=os.environ):
 
     if isinstance(checkin, dict) and checkin.get("today_checked_in"):
         print(f"ALREADY CLAIMED today_checked_in=true {before}")
-        _write_summary(env, email, already=True, before=before)
+        _write_summary(env, account, already=True, before=before)
         return 0
 
     endpoint = env.get("CHECKIN_ENDPOINT", "").strip()
@@ -292,14 +420,14 @@ def run(args, env=os.environ):
         print(f"CLAIMED message={result['message']!r} data={json.dumps(result['data'])[:300]}")
         print(f"BEFORE {before}")
         print(f"AFTER  {after}")
-    _write_summary(env, email, already=result["already"], before=before)
+    _write_summary(env, account, already=result["already"], before=before)
     return 0
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="OpenMusic AI daily auto sign-in")
     p.add_argument("--probe", action="store_true",
-                   help="login + dump user/activity/credit state, skip claim")
+                   help="use session cookies + dump user/activity/credit state, skip claim")
     args = p.parse_args(argv)
     return run(args)
 

@@ -3,7 +3,15 @@
 import unittest
 
 import autosign
-from autosign import ApiError, OpenMusicClient, activity_id_from_status, md5_hex, run
+from autosign import (
+    ApiError,
+    OpenMusicClient,
+    activity_id_from_status,
+    md5_hex,
+    parse_cookie_header,
+    run,
+    session_cookies_from_env,
+)
 
 
 class FakeClient(OpenMusicClient):
@@ -33,6 +41,9 @@ def run_with(monkey_client, env, argv):
 
 
 BASE_ENV = {"OPENMUSIC_EMAIL": "a@b.c", "OPENMUSIC_PASSWORD": "s3cret"}
+COOKIE_ENV = {
+    "OPENMUSIC_COOKIES": "OPENMUSIC_ACCESS_TOKEN=tok; OPENMUSIC_SESSION_ID=sid",
+}
 OVERRIDE_ENV = dict(BASE_ENV, CHECKIN_ENDPOINT="POST common-api/v1/checkin")
 
 
@@ -71,6 +82,43 @@ def base_script(extra=None):
 class TestAutosign(unittest.TestCase):
     def test_md5_vector(self):
         self.assertEqual(md5_hex("password"), "5f4dcc3b5aa765d61d8327deb882cf99")
+
+    def test_parse_cookie_header(self):
+        cookies = parse_cookie_header(
+            "OPENMUSIC_ACCESS_TOKEN=abc; OPENMUSIC_SESSION_ID=xyz; Path=/"
+        )
+        self.assertEqual(cookies["OPENMUSIC_ACCESS_TOKEN"], "abc")
+        self.assertEqual(cookies["OPENMUSIC_SESSION_ID"], "xyz")
+        self.assertNotIn("Path", cookies)
+
+    def test_session_cookies_from_token_secret(self):
+        cookies = session_cookies_from_env({
+            "OPENMUSIC_ACCESS_TOKEN": "jwt-token",
+            "OPENMUSIC_SESSION_ID": "sid",
+        })
+        self.assertEqual(cookies["OPENMUSIC_ACCESS_TOKEN"], "jwt-token")
+        self.assertEqual(cookies["OPENMUSIC_SESSION_ID"], "sid")
+
+    def test_cookie_session_skips_login(self):
+        c = FakeClient(base_script({
+            ("POST", "api/activity/check-in/claim"):
+                {"code": 200, "message": "claimed", "data": {"rewardGranted": True}},
+        }))
+        rc = run_with(c, COOKIE_ENV, {"probe": False})
+        self.assertEqual(rc, 0)
+        self.assertFalse(any(p.endswith("login") for _, p, _ in c.calls))
+        self.assertTrue(any("claim" in p for _, p, _ in c.calls))
+        self.assertIn("OPENMUSIC_ACCESS_TOKEN=tok", c._cookie_header)
+
+    def test_expired_cookie_login_required_exit_2(self):
+        c = FakeClient(base_script({
+            ("GET", "api/activity/check-in/status"):
+                {"code": 200, "message": "ok",
+                 "data": {"authenticated": False, "login_required": True,
+                          "activity_available": True, "today_checked_in": False}},
+        }))
+        self.assertEqual(run_with(c, COOKIE_ENV, {"probe": False}), 2)
+        self.assertFalse(any("claim" in p for _, p, _ in c.calls))
 
     def test_login_body_uses_md5(self):
         c = FakeClient({("POST", "common-api/v1/login"):

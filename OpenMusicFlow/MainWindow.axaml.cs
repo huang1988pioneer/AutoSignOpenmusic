@@ -8,8 +8,8 @@ namespace OpenMusicFlow;
 public partial class MainWindow : Window
 {
     private const int AccountCount = 10;
-    private const string EmailSecretName = "OPENMUSIC_EMAIL";
-    private const string PasswordSecretName = "OPENMUSIC_PASSWORD";
+    private const string CookiesSecretName = "OPENMUSIC_COOKIES";
+    private const string TokenSecretName = "OPENMUSIC_ACCESS_TOKEN";
 
     private readonly GitHubActionsService _githubActions = new();
     private readonly Dictionary<int, TextBox> _aliasInputs = new();
@@ -33,16 +33,18 @@ public partial class MainWindow : Window
         view.BringIntoView();
     }
 
-    private async void CopyEmailSecretButton_OnClick(object? sender, RoutedEventArgs e)
+    private async void CopyCookiesSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(EmailSecretName);
-        AccountStatusText.Text = $"已複製 {EmailSecretName}。請到 GitHub Secrets 貼上 Email。";
+        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(CookiesSecretName);
+        AccountStatusText.Text =
+            $"已複製 {CookiesSecretName}。請貼 OPENMUSIC_ACCESS_TOKEN=...; OPENMUSIC_SESSION_ID=...，不要提交到 Git。";
     }
 
-    private async void CopyPasswordSecretButton_OnClick(object? sender, RoutedEventArgs e)
+    private async void CopyTokenSecretButton_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(PasswordSecretName);
-        AccountStatusText.Text = $"已複製 {PasswordSecretName}。請到 GitHub Secrets 貼上密碼，不要把密碼提交到 Git。";
+        if (Clipboard is { } clipboard) await clipboard.SetTextAsync(TokenSecretName);
+        AccountStatusText.Text =
+            $"已複製 {TokenSecretName}。可再新增 OPENMUSIC_SESSION_ID。Cookie 過期時請重新從瀏覽器複製。";
     }
 
     private async void TriggerClaimButton_OnClick(object? sender, RoutedEventArgs e)
@@ -197,7 +199,7 @@ public partial class MainWindow : Window
             .Where(pair => !pair.Value.IsEmpty)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         await File.WriteAllTextAsync(AccountsFile, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
-        AccountStatusText.Text = "帳號別名與 Email 已儲存在這台電腦（不含密碼）。登入簽到仍只由 GitHub Actions 執行。";
+        AccountStatusText.Text = "帳號別名與 Email 標籤已儲存在這台電腦。簽到身分仍是 GitHub Secrets 裡的 cookie。";
     }
 
     private static string AccountsFile => Path.Combine(
