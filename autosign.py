@@ -9,6 +9,13 @@ Auth (GitHub Secrets):
   * OPENMUSIC_COOKIES          optional full Cookie header (account 1)
   * OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5)  optional email-account fallback
 
+Session refresh (the API has no refresh-token endpoint):
+  * Set-Cookie renewals sent back by the backend are adopted for the rest of
+    the run instead of replaying the value we started with.
+  * If the cookie is dead and OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD(_MD5) are
+    set, autosign re-logins once to mint a new session and retries; without
+    credentials it still exits 2 and asks for the secret to be updated.
+
 Flow (reverse-engineered from the production web client, chunk 13471):
   1. Session cookie OPENMUSIC_ACCESS_TOKEN on .openmusic.ai
      (or POST {BASE}/common-api/v1/login {email, password: md5_hex} to mint it)
@@ -137,12 +144,17 @@ class OpenMusicClient:
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)
         )
-        self._cookie_header = ""
+        self.cookies = {}
+        self.renewed = []
+
+    @property
+    def _cookie_header(self):
+        return "; ".join(f"{name}={value}" for name, value in self.cookies.items())
 
     def apply_cookies(self, cookies):
         """Reuse a browser session instead of posting email/password."""
         cookies = {str(name): str(value) for name, value in (cookies or {}).items() if name and value}
-        self._cookie_header = "; ".join(f"{name}={value}" for name, value in cookies.items())
+        self.cookies.update(cookies)
         host = urllib.parse.urlparse(self.base_url).hostname or "www.openmusic.ai"
         domain = host[4:] if host.startswith("www.") else host
         if domain and not domain.startswith("."):
@@ -168,6 +180,34 @@ class OpenMusicClient:
                 rfc2109=False,
             ))
 
+    def clear_cookies(self):
+        """Drop the current session, e.g. right before a re-login refresh."""
+        self.cookies.clear()
+        self.jar.clear()
+
+    def _absorb_set_cookie(self, headers):
+        """Adopt session cookies the backend rotates mid-flight.
+
+        The Cookie header is rendered from self.cookies, so without this the
+        value we started with would be replayed forever and any renewal the
+        server hands back in Set-Cookie would be thrown away.
+        """
+        get_all = getattr(headers, "get_all", None)
+        if get_all is None:
+            return
+        for raw in get_all("Set-Cookie") or []:
+            name, _, value = raw.split(";", 1)[0].strip().partition("=")
+            name, value = name.strip(), value.strip().strip('"')
+            if not name:
+                continue
+            if not value:  # server clearing the cookie
+                self.cookies.pop(name, None)
+                continue
+            if self.cookies.get(name) != value:
+                if name in self.cookies and name not in self.renewed:
+                    self.renewed.append(name)
+                self.cookies[name] = value
+
     def _request(self, method, path, body=None):
         url = self.base_url + "/" + path.lstrip("/")
         data = None
@@ -185,8 +225,10 @@ class OpenMusicClient:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with self.opener.open(req, timeout=self.timeout) as resp:
+                self._absorb_set_cookie(resp.headers)
                 raw = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as e:
+            self._absorb_set_cookie(e.headers)
             raw = e.read().decode("utf-8", errors="replace") or "{}"
             try:
                 env = json.loads(raw)
@@ -281,6 +323,28 @@ def summarize_user(data):
             f"credits={total} buckets={len(balances)}")
 
 
+EXPIRED_HINT = ("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
+                "in GitHub Secrets")
+RELOGIN_HINT = ("hint: set OPENMUSIC_EMAIL + OPENMUSIC_PASSWORD (or "
+                "OPENMUSIC_PASSWORD_MD5) so autosign can re-login by itself "
+                "when the cookie expires")
+
+
+def _login(client, email, password, password_md5):
+    """Mint a fresh session cookie. Returns 0, or the exit code to fail with."""
+    try:
+        client.login(email, password_md5 or password,
+                     password_is_md5=bool(password_md5))
+    except ApiError as e:
+        name = ERROR_NAMES.get(e.code, "")
+        print(f"LOGIN FAILED code={e.code} {name} message={e.message!r}")
+        if e.code == 400010:
+            print("hint: rate limited, retry later (GitHub Actions `retry` handles this)")
+        return 2
+    print(f"LOGIN OK {email}")
+    return 0
+
+
 def _write_summary(env, account, already, before):
     summary = env.get("GITHUB_STEP_SUMMARY")
     if not summary:
@@ -308,64 +372,87 @@ def run(args, env=os.environ):
 
     client = OpenMusicClient(base_url=base)
     account = email or "cookie-session"
+    # A dead cookie is only refreshable when we also hold the credentials that
+    # minted it; on the email/password path we have just logged in anyway.
+    can_relogin = bool(cookies and email and (password or password_md5))
     if cookies:
         client.apply_cookies(cookies)
         print("SESSION COOKIES " + ",".join(sorted(cookies)))
     else:
+        rc = _login(client, email, password, password_md5)
+        if rc:
+            return rc
+
+    state = {}
+
+    def load_state():
+        """Read-only state first so --probe / logs always show balances.
+
+        Returns (expired_reason, fatal_rc). A reason means the session is dead
+        and a re-login may revive it; fatal_rc is the exit code to use if not.
+        """
+        state.clear()
         try:
-            client.login(email, password_md5 or password,
-                         password_is_md5=bool(password_md5))
+            user = client.get_user()
         except ApiError as e:
-            name = ERROR_NAMES.get(e.code, "")
-            print(f"LOGIN FAILED code={e.code} {name} message={e.message!r}")
-            if e.code == 400010:
-                print("hint: rate limited, retry later (GitHub Actions `retry` handles this)")
-            return 2
-        print(f"LOGIN OK {email}")
-
-    # Read-only state first so --probe / logs always show balances.
-    try:
-        user = client.get_user()
+            print(f"USER FETCH FAILED {e}")
+            return ("user fetch failed", 2) if cookies else (None, 1)
+        state["user"] = user
         print("USER", summarize_user(user))
-    except ApiError as e:
-        print(f"USER FETCH FAILED {e}")
-        if cookies:
-            print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
-                  "in GitHub Secrets")
-            return 2
-        return 1
-    user_email = (user.get("user") or {}).get("email") if isinstance(user, dict) else None
-    if user_email:
-        account = user_email
-    elif cookies and not (isinstance(user, dict) and (user.get("user") or {}).get("id")):
-        print("SESSION EXPIRED: /common-api/v1/user has no logged-in profile")
-        print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
-              "in GitHub Secrets")
-        return 2
-    try:
-        activity = client.get_activities_current()
-        print("ACTIVITY", json.dumps(activity)[:1000])
-    except ApiError as e:
-        print(f"ACTIVITY FETCH FAILED {e}")
-        activity = None
-    checkin = None
-    try:
-        checkin = client.get_checkin_status()
-        print("CHECKIN_STATUS", json.dumps(checkin)[:1000])
-    except ApiError as e:
-        print(f"CHECKIN_STATUS FAILED {e}")
-    try:
-        log = client.get_credit_log()
-        items = log.get("list", log) if isinstance(log, dict) else log
-        print("CREDIT_LOG", json.dumps(items)[:800])
-    except ApiError as e:
-        print(f"CREDIT_LOG FAILED {e}")
+        user_email = (user.get("user") or {}).get("email") if isinstance(user, dict) else None
+        state["email"] = user_email
+        if not user_email and cookies and not (
+                isinstance(user, dict) and (user.get("user") or {}).get("id")):
+            print("SESSION EXPIRED: /common-api/v1/user has no logged-in profile")
+            return "/common-api/v1/user has no logged-in profile", 2
+        try:
+            activity = client.get_activities_current()
+            print("ACTIVITY", json.dumps(activity)[:1000])
+        except ApiError as e:
+            print(f"ACTIVITY FETCH FAILED {e}")
+        try:
+            state["checkin"] = client.get_checkin_status()
+            print("CHECKIN_STATUS", json.dumps(state["checkin"])[:1000])
+        except ApiError as e:
+            print(f"CHECKIN_STATUS FAILED {e}")
+        try:
+            log = client.get_credit_log()
+            items = log.get("list", log) if isinstance(log, dict) else log
+            print("CREDIT_LOG", json.dumps(items)[:800])
+        except ApiError as e:
+            print(f"CREDIT_LOG FAILED {e}")
+        if isinstance(state.get("checkin"), dict) and state["checkin"].get("login_required"):
+            print("SESSION EXPIRED login_required=true")
+            return "login_required=true", 2
+        return None, 0
 
-    if isinstance(checkin, dict) and checkin.get("login_required"):
-        print("SESSION EXPIRED login_required=true")
-        print("hint: cookie/session expired — update OPENMUSIC_ACCESS_TOKEN "
-              "in GitHub Secrets")
-        return 2
+    expired, fatal = load_state()
+    if expired and can_relogin:
+        print(f"SESSION REFRESH: {expired} — re-logging in as {email}")
+        client.clear_cookies()
+        rc = _login(client, email, password, password_md5)
+        if rc:
+            return rc
+        expired, fatal = load_state()
+        if not expired:
+            print("SESSION REFRESHED: cookie renewed by re-login, continuing")
+    if expired or fatal:
+        if expired and can_relogin:
+            print("hint: re-login succeeded but the session still reads as logged "
+                  "out; check OPENMUSIC_EMAIL / OPENMUSIC_PASSWORD")
+        elif expired:
+            print(EXPIRED_HINT)
+            print(RELOGIN_HINT)
+        return fatal or 2
+
+    if client.renewed:
+        print("SESSION COOKIE ROTATED " + ",".join(client.renewed) +
+              " (server issued a fresh value; the stored secret still has the old one)")
+
+    user = state.get("user")
+    checkin = state.get("checkin")
+    if state.get("email"):
+        account = state["email"]
 
     if args.probe:
         print("PROBE MODE: state dumped, no claim attempted")

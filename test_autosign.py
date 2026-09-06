@@ -1,5 +1,6 @@
 """Unit tests for autosign.py (stdlib only, mocked transport)."""
 
+import email.message
 import unittest
 
 import autosign
@@ -28,6 +29,33 @@ class FakeClient(OpenMusicClient):
                     raise resp
                 return resp
         raise AssertionError(f"unexpected call {method} {path}")
+
+
+class ExpiringClient(FakeClient):
+    """Cookie session reads as logged out until a login mints a new one."""
+
+    def __init__(self, script):
+        super().__init__(script)
+        self.logged_in = False
+
+    def _request(self, method, path, body=None):
+        if path.startswith("common-api/v1/login"):
+            envelope = super()._request(method, path, body)
+            self.logged_in = True
+            return envelope
+        if not self.logged_in and path.startswith("api/activity/check-in/status"):
+            self.calls.append((method, path, body))
+            return {"code": 200, "message": "ok",
+                    "data": {"authenticated": False, "login_required": True,
+                             "activity_available": True, "today_checked_in": False}}
+        return super()._request(method, path, body)
+
+
+def fake_headers(set_cookie_values):
+    headers = email.message.Message()
+    for value in set_cookie_values:
+        headers["Set-Cookie"] = value
+    return headers
 
 
 def run_with(monkey_client, env, argv):
@@ -109,6 +137,56 @@ class TestAutosign(unittest.TestCase):
         self.assertFalse(any(p.endswith("login") for _, p, _ in c.calls))
         self.assertTrue(any("claim" in p for _, p, _ in c.calls))
         self.assertIn("OPENMUSIC_ACCESS_TOKEN=tok", c._cookie_header)
+
+    def test_set_cookie_renewal_replaces_stale_value(self):
+        c = OpenMusicClient()
+        c.apply_cookies({"OPENMUSIC_ACCESS_TOKEN": "old", "OPENMUSIC_SESSION_ID": "sid"})
+        c._absorb_set_cookie(fake_headers([
+            "OPENMUSIC_ACCESS_TOKEN=new; Path=/; HttpOnly; Secure",
+        ]))
+        self.assertEqual(c.cookies["OPENMUSIC_ACCESS_TOKEN"], "new")
+        self.assertEqual(c.cookies["OPENMUSIC_SESSION_ID"], "sid")
+        self.assertEqual(c.renewed, ["OPENMUSIC_ACCESS_TOKEN"])
+        self.assertIn("OPENMUSIC_ACCESS_TOKEN=new", c._cookie_header)
+        self.assertNotIn("=old", c._cookie_header)
+
+    def test_set_cookie_clear_drops_cookie(self):
+        c = OpenMusicClient()
+        c.apply_cookies({"OPENMUSIC_ACCESS_TOKEN": "old"})
+        c._absorb_set_cookie(fake_headers(["OPENMUSIC_ACCESS_TOKEN=; Max-Age=0"]))
+        self.assertNotIn("OPENMUSIC_ACCESS_TOKEN", c.cookies)
+        self.assertEqual(c._cookie_header, "")
+
+    def test_clear_cookies_empties_session(self):
+        c = OpenMusicClient()
+        c.apply_cookies({"OPENMUSIC_ACCESS_TOKEN": "old"})
+        c.clear_cookies()
+        self.assertEqual(c.cookies, {})
+        self.assertEqual(c._cookie_header, "")
+        self.assertEqual(list(c.jar), [])
+
+    def test_expired_cookie_relogins_and_claims(self):
+        env = dict(COOKIE_ENV, **BASE_ENV)
+        c = ExpiringClient(base_script({
+            ("POST", "api/activity/check-in/claim"):
+                {"code": 200, "message": "claimed", "data": {"rewardGranted": True}},
+        }))
+        self.assertEqual(run_with(c, env, {"probe": False}), 0)
+        self.assertTrue(any(p.endswith("common-api/v1/login") for _, p, _ in c.calls))
+        self.assertTrue(any("claim" in p for _, p, _ in c.calls))
+
+    def test_expired_cookie_without_credentials_still_exit_2(self):
+        c = ExpiringClient(base_script())
+        self.assertEqual(run_with(c, COOKIE_ENV, {"probe": False}), 2)
+        self.assertFalse(any(p.endswith("common-api/v1/login") for _, p, _ in c.calls))
+
+    def test_relogin_failure_exit_2(self):
+        env = dict(COOKIE_ENV, **BASE_ENV)
+        c = ExpiringClient(base_script({
+            ("POST", "common-api/v1/login"): ApiError(400005, "wrong password", "login"),
+        }))
+        self.assertEqual(run_with(c, env, {"probe": False}), 2)
+        self.assertFalse(any("claim" in p for _, p, _ in c.calls))
 
     def test_expired_cookie_login_required_exit_2(self):
         c = FakeClient(base_script({
