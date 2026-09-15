@@ -27,7 +27,7 @@ Flow (reverse-engineered from the production web client, chunk 13471):
 
 CHECKIN_ENDPOINT still overrides step 4 if you need a one-off path.
 
-Exit codes: 0 claimed/already-claimed, 1 config/runtime error,
+Exit codes: 0 claimed/already-claimed/skipped, 1 config/runtime error,
             2 login failed, 3 claim failed.
 """
 
@@ -345,13 +345,13 @@ def _login(client, email, password, password_md5):
     return 0
 
 
-def _write_summary(env, account, already, before):
+def _write_summary(env, account, claim_status, before):
     summary = env.get("GITHUB_STEP_SUMMARY")
     if not summary:
         return
     with open(summary, "a", encoding="utf-8") as f:
         f.write(f"### OpenMusic autosign\n- session: {account} OK\n"
-                f"- claim: {'already claimed' if already else 'claimed'}\n"
+                f"- claim: {claim_status}\n"
                 f"- before: {before}\n")
 
 
@@ -463,7 +463,20 @@ def run(args, env=os.environ):
 
     if isinstance(checkin, dict) and checkin.get("today_checked_in"):
         print(f"ALREADY CLAIMED today_checked_in=true {before}")
-        _write_summary(env, account, already=True, before=before)
+        _write_summary(env, account, "already claimed", before)
+        return 0
+
+    # The API returns these flags before a claim is allowed.  In particular,
+    # completed=true is the end of a reward cycle, where the claim endpoint
+    # currently responds with HTTP 500 instead of a useful business error.
+    if isinstance(checkin, dict) and checkin.get("completed"):
+        print(f"CHECK-IN ACTIVITY COMPLETED completed=true; skipping claim {before}")
+        _write_summary(env, account, "activity completed (skipped)", before)
+        return 0
+
+    if isinstance(checkin, dict) and checkin.get("can_check_in") is False:
+        print(f"CHECK-IN UNAVAILABLE can_check_in=false; skipping claim {before}")
+        _write_summary(env, account, "unavailable (skipped)", before)
         return 0
 
     endpoint = env.get("CHECKIN_ENDPOINT", "").strip()
@@ -507,7 +520,12 @@ def run(args, env=os.environ):
         print(f"CLAIMED message={result['message']!r} data={json.dumps(result['data'])[:300]}")
         print(f"BEFORE {before}")
         print(f"AFTER  {after}")
-    _write_summary(env, account, already=result["already"], before=before)
+    _write_summary(
+        env,
+        account,
+        "already claimed" if result["already"] else "claimed",
+        before,
+    )
     return 0
 
 

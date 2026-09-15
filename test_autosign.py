@@ -81,12 +81,15 @@ def ok_user():
                      "user_credit_balances": [{"balance": 10}, {"balance": 5}]}}
 
 
-def ok_checkin(today=False, activity_id=42):
+def ok_checkin(today=False, activity_id=42, *, can_check_in=None, completed=False):
+    if can_check_in is None:
+        can_check_in = not today
     data = {
         "authenticated": True,
         "activity_available": True,
         "today_checked_in": today,
-        "can_check_in": not today,
+        "can_check_in": can_check_in,
+        "completed": completed,
         "activity_id": activity_id,
         "activity": {"activity_id": activity_id, "reward_rules": [{"day": 1, "credits": 10}]},
     }
@@ -243,6 +246,26 @@ class TestAutosign(unittest.TestCase):
     def test_already_checked_in_status_skips_claim(self):
         c = FakeClient(base_script({
             ("GET", "api/activity/check-in/status"): ok_checkin(today=True),
+        }))
+        self.assertEqual(run_with(c, BASE_ENV, {"probe": False}), 0)
+        self.assertFalse(any("claim" in p for _, p, _ in c.calls))
+
+    def test_completed_activity_skips_claim(self):
+        c = FakeClient(base_script({
+            ("GET", "api/activity/check-in/status"):
+                ok_checkin(can_check_in=False, completed=True),
+            ("POST", "api/activity/check-in/claim"):
+                ApiError(500, "Internal Server Error", "check-in/claim"),
+        }))
+        self.assertEqual(run_with(c, BASE_ENV, {"probe": False}), 0)
+        self.assertFalse(any("claim" in p for _, p, _ in c.calls))
+
+    def test_unavailable_checkin_skips_claim(self):
+        c = FakeClient(base_script({
+            ("GET", "api/activity/check-in/status"):
+                ok_checkin(can_check_in=False),
+            ("POST", "api/activity/check-in/claim"):
+                ApiError(500, "Internal Server Error", "check-in/claim"),
         }))
         self.assertEqual(run_with(c, BASE_ENV, {"probe": False}), 0)
         self.assertFalse(any("claim" in p for _, p, _ in c.calls))
