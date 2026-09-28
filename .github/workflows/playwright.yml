@@ -2,9 +2,11 @@ name: Playwright login flow
 
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly smoke: login page + API shape. Live claim runs if secrets exist.
-    - cron: "27 2 * * 1"
+  # Weekly schedule paused since 2026-09-28 (it runs a live claim when
+  # secrets exist). Uncomment to resume.
+  # schedule:
+  #   # Weekly smoke: login page + API shape. Live claim runs if secrets exist.
+  #   - cron: "27 2 * * 1"
 
 jobs:
   e2e:

@@ -35,7 +35,9 @@ Google / Apple 帳號也可以：在瀏覽器登入後複製 cookie 即可，不
 
 4. 到 **Actions → OpenMusic daily autosign → Run workflow** 手動跑一次。
 
-排程每天台北時間 **05:27、13:27、21:27**（UTC `21:27、05:27、13:27`）。同一天已領取時會回報成功，不會重複領獎。
+> **自 2026-09-28 起暫停自動簽到**：`OpenMusic daily autosign` 與每週 `Playwright login flow` 的 `schedule` 已註解停用，只能從 Actions 手動執行。要恢復時，取消兩個 workflow 中 `schedule` 區塊的註解並推送到預設分支。
+
+原排程（暫停中）為每天台北時間 **05:27、13:27、21:27**（UTC `21:27、05:27、13:27`）。同一天已領取時會回報成功，不會重複領獎。
 另外每天台北 **04:27**（UTC `20:27`）跑 `Check Token Secret Duplicates`，比對 `OPENMUSIC_ACCESS_TOKEN` … `OPENMUSIC_ACCESS_TOKEN33` 是否有相同值；重複或全部未設定都會失敗。可從 **Actions → Check Token Secret Duplicates → Run workflow** 手動執行。
 分鐘 `27` 已於 2026-09-04 核對，不與五個參考專案當時的 cron 分鐘重複；完整對照見 [排程參考](docs/reference-schedules.md)。GitHub 實際啟動時間可能因排隊而延後。
 新排程需將 `.github/workflows/autosign.yml` 與 `.github/workflows/check-token-secret-duplicates.yml` 推送到目標儲存庫的預設分支，並啟用 Actions 才會生效。
@@ -85,7 +87,7 @@ dotnet run --project OpenMusicFlow/OpenMusicFlow.csproj -c Release
 3. Chrome／Edge 使用電腦既有版本；Chromium／Firefox 首次使用時按「安裝瀏覽器」。不需要另裝 Node.js 或 Python 來使用桌面登入功能。
 4. 核對畫面上的儲存庫與 Secret 名稱。預設勾選「登入成功後自動寫入 GitHub Secret」，同名 Secret 會被更新；取消勾選可先擷取，再手動按「寫入 GitHub Secret」。
 5. 按「開始登入並擷取」，在開啟的官網視窗自行完成 Email、Google 或 Apple 登入與驗證。工具等待最多 10 分鐘，驗證成功後會關閉這次登入視窗。登入供應商若拒絕某個自動化瀏覽器，可切換瀏覽器或改用官網 Email 登入。
-6. 畫面顯示登入 Email 與 Secret 寫入成功後，可到「簽到總覽」立即執行，或等候 GitHub 排程。
+6. 畫面顯示登入 Email 與 Secret 寫入成功後，可到「簽到總覽」立即執行（自動簽到排程目前暫停）。
 
 每次登入建立全新的瀏覽器工作階段，帳號之間不共用 Cookie，也不讀取日常瀏覽器的個人設定檔。Token 僅暫存在記憶體；切換帳號／瀏覽器、取消或關閉工具會清除。寫入 Secrets 透過 `gh secret set` 的標準輸入傳遞，不把 Token 放在命令列參數或操作紀錄。上傳失敗時可以重試；請勿在 Secret 更新成功前關閉工具。
 

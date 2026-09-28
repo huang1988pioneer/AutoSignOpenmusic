@@ -1,10 +1,11 @@
 name: OpenMusic daily autosign
 
 on:
-  schedule:
-    # Taipei 05:27, 13:27, 21:27. Minute 27 avoids the five reference projects.
-    # Verified 2026-09-04: other projects use 0, 5, 9, 18, 19, 30, 35, 50.
-    - cron: "27 21,5,13 * * *"
+  # Scheduled auto check-in paused since 2026-09-28. Uncomment to resume.
+  # schedule:
+  #   # Taipei 05:27, 13:27, 21:27. Minute 27 avoids the five reference projects.
+  #   # Verified 2026-09-04: other projects use 0, 5, 9, 18, 19, 30, 35, 50.
+  #   - cron: "27 21,5,13 * * *"
   workflow_dispatch:
 
 jobs:
